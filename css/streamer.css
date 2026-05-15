@@ -378,3 +378,28 @@
   color: var(--text3);
   white-space: nowrap;
 }
+
+/* 수정/삭제 버튼 */
+.note-edit-btn, .note-delete-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.note-edit-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.note-delete-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.own-badge {
+  color: var(--accent);
+  font-size: 11px;
+}

@@ -305,17 +305,41 @@ async function initStreamer(slug) {
     finally { btn.disabled = false; btn.textContent = '인증하기'; }
   });
 
-  function openWriteS(watchSec) {
+  let editingNoteId = null; // 수정 중인 노트 ID
+
+  function openWriteS(watchSec, existingNote = null) {
     Object.keys(ratingsS).forEach(k => ratingsS[k] = 0);
     document.querySelectorAll('.stars[data-page="s"] .star').forEach(s => s.classList.remove('active'));
     document.getElementById('note-content-s').value = '';
     document.getElementById('image-preview-s').innerHTML = '';
     document.getElementById('write-error-s').style.display = 'none';
     selectedFilesS = [];
+    editingNoteId = null;
+
     openS('step-write-s');
-    document.getElementById('write-title-s').textContent = `노트 작성`;
     const h = Math.floor(watchSec/3600), m = Math.floor((watchSec%3600)/60);
     document.getElementById('write-watch-badge-s').textContent = `✓ ${h}시간 ${m > 0 ? m+'분' : ''} 시청자`;
+
+    if (existingNote) {
+      editingNoteId = existingNote.id;
+      document.getElementById('note-content-s').value = existingNote.content || '';
+      document.getElementById('write-title-s').textContent = '노트 수정';
+      document.getElementById('submit-btn-s').textContent = '수정 완료';
+      // 별점 복원
+      ['avatar','song','talk','attend'].forEach(key => {
+        const val = existingNote[`rating_${key}`];
+        if (val) {
+          ratingsS[key] = val;
+          document.querySelector(`.stars[data-page="s"][data-key="${key}"]`)
+            ?.querySelectorAll('.star').forEach(st =>
+              st.classList.toggle('active', Number(st.dataset.val) <= val));
+        }
+      });
+    } else {
+      editingNoteId = null;
+      document.getElementById('write-title-s').textContent = '노트 작성';
+      document.getElementById('submit-btn-s').textContent = '노트 등록';
+    }
     const inp = document.getElementById('note-images-s');
     const prev = document.getElementById('image-preview-s');
     const lbl = document.querySelector('.upload-label-s');
@@ -361,12 +385,26 @@ async function initStreamer(slug) {
         imageUrls.push(data.url);
       }
 
-      await SN.apiPost('soop_notes', {
-        streamer_id: streamerIdS, content: content || '', watch_seconds: watchSec,
-        image_urls: imageUrls, visitor_fingerprint: fp,
+      const payload = {
+        content: content || '', watch_seconds: watchSec, image_urls: imageUrls,
         rating_avatar: ratingsS.avatar||null, rating_song: ratingsS.song||null,
         rating_talk: ratingsS.talk||null, rating_attend: ratingsS.attend||null,
-      }, 'return=minimal');
+      };
+
+      if (editingNoteId) {
+        // 수정
+        const res = await fetch(`/api/soop_notes?id=eq.${editingNoteId}&visitor_fingerprint=eq.${fp}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('수정 실패');
+      } else {
+        // 신규
+        await SN.apiPost('soop_notes', {
+          ...payload, streamer_id: streamerIdS, visitor_fingerprint: fp,
+        }, 'return=minimal');
+      }
 
       closeS();
       await loadNotes();
@@ -497,22 +535,61 @@ async function initStreamer(slug) {
     const notes = await SN.apiGet(`soop_notes?streamer_id=eq.${streamerIdS}&select=*&order=created_at.desc`).catch(()=>[]);
     const fp = await SN.getFingerprint();
     if (!notes.length) { notesList.innerHTML = '<div class="empty-notes">아직 노트가 없어요.<br>인증하고 첫 노트를 남겨보세요!</div>'; return; }
+    // 수정할 노트 데이터 캐시
+    const notesCache = {};
+    notes.forEach(n => { notesCache[n.id] = n; });
+
     notesList.innerHTML = notes.map(n => {
       const h = Math.floor(n.watch_seconds/3600);
       const date = new Date(n.created_at).toLocaleDateString('ko-KR');
       const isOwn = n.visitor_fingerprint === fp;
       const rStr = [n.rating_avatar&&`아바타 ${'★'.repeat(n.rating_avatar)}`,n.rating_song&&`노래 ${'★'.repeat(n.rating_song)}`,n.rating_talk&&`소통 ${'★'.repeat(n.rating_talk)}`,n.rating_attend&&`출석 ${'★'.repeat(n.rating_attend)}`].filter(Boolean).join(' · ');
       const imgs = Array.isArray(n.image_urls)&&n.image_urls.length ? `<div class="note-images">${n.image_urls.map(u=>`<img src="${u}" alt="" onclick="window.open('${u}','_blank')">`).join('')}</div>` : '';
-      return `<div class="note-card">
+      return `<div class="note-card" data-note-id="${n.id}">
         <div class="note-card-header">
-          <span class="note-author">${h}시간 시청자${isOwn?' · 내 노트':''}</span>
-          <span class="note-date">${date}</span>
+          <span class="note-author">${h}시간 시청자${isOwn?' · <span class="own-badge">내 노트</span>':''}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="note-date">${date}</span>
+            ${isOwn ? `<button class="note-edit-btn" data-id="${n.id}">수정</button><button class="note-delete-btn" data-id="${n.id}">삭제</button>` : ''}
+          </div>
         </div>
         ${imgs}
         ${rStr?`<div class="note-rating">${rStr}</div>`:''}
         ${n.content?`<div class="note-content">${escHtml(n.content)}</div>`:''}
       </div>`;
     }).join('');
+
+    // 삭제 이벤트
+    notesList.querySelectorAll('.note-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('이 노트를 삭제할까요?')) return;
+        const id = btn.dataset.id;
+        try {
+          const res = await fetch(`/api/soop_notes?id=eq.${id}&visitor_fingerprint=eq.${fp}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (!res.ok) throw new Error('삭제 실패');
+          await loadNotes();
+        } catch(e) { alert(e.message); }
+      });
+    });
+
+    // 수정 이벤트 - 작성 모달 열고 기존 데이터 채우기
+    notesList.querySelectorAll('.note-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const n = notesCache[id];
+        if (!n) return;
+
+        // 인증 확인
+        const auth = RecapAuth.getAuth();
+        const s = auth?.streamers?.find(s => s.slug === slug);
+        const watchSec = s?.seconds || n.watch_seconds;
+
+        openWriteS(watchSec, n); // 기존 데이터 전달
+      });
+    });
   }
 
   await loadProfile();
