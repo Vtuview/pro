@@ -1,2 +1,2 @@
-/edit/* /edit.html 200
-/:slug /_templates/streamer.html 200
+/edit/* /index.html 200
+/* /index.html 200
