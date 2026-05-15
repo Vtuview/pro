@@ -447,9 +447,8 @@ async function initStreamer(slug) {
   }
 
   function buildCharts(balloonH, broadcastH) {
-    // 최근 6개월 정렬
     const months = Object.keys({ ...balloonH, ...broadcastH })
-      .sort().slice(-6);
+      .sort().slice(-6); // 오래된 순 → 최신이 아래
 
     const bMax = Math.max(...months.map(m => balloonH[m] || 0), 1);
     const hMax = Math.max(...months.map(m => broadcastH[m] || 0), 1);
@@ -462,24 +461,35 @@ async function initStreamer(slug) {
       </div>`;
     }
 
-    const rows = months.map(m => {
+    const balloonRows = months.map(m => {
       const label = m.replace(/^20/, '').replace('-', '/');
       return `<div class="chart-row">
         <div class="chart-label">${label}</div>
-        <div class="chart-bars">
-          ${bar(balloonH[m] || 0, bMax, '#f472b6')}
-          ${bar(broadcastH[m] || 0, hMax, '#60a5fa')}
-        </div>
+        <div class="chart-bars">${bar(balloonH[m] || 0, bMax, '#f472b6')}</div>
       </div>`;
-    }).reverse().join('');
+    }).join('');
 
-    return `<div class="chart-section">
-      <div class="chart-legend">
-        <span class="legend-dot" style="background:#f472b6;"></span>풍선
-        <span class="legend-dot" style="background:#60a5fa;margin-left:12px;"></span>방송시간(h)
+    const broadRows = months.map(m => {
+      const label = m.replace(/^20/, '').replace('-', '/');
+      return `<div class="chart-row">
+        <div class="chart-label">${label}</div>
+        <div class="chart-bars">${bar(broadcastH[m] || 0, hMax, '#60a5fa')}</div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="chart-section">
+        <div class="chart-title">
+          <span class="legend-dot" style="background:#f472b6;"></span>별풍선
+        </div>
+        ${balloonRows}
       </div>
-      ${rows}
-    </div>`;
+      <div class="chart-section" style="border-top:1px solid var(--border);">
+        <div class="chart-title">
+          <span class="legend-dot" style="background:#60a5fa;"></span>방송시간
+        </div>
+        ${broadRows}
+      </div>`;
   }
 
   async function loadNotes() {
@@ -498,9 +508,9 @@ async function initStreamer(slug) {
           <span class="note-author">${h}시간 시청자${isOwn?' · 내 노트':''}</span>
           <span class="note-date">${date}</span>
         </div>
+        ${imgs}
         ${rStr?`<div class="note-rating">${rStr}</div>`:''}
         ${n.content?`<div class="note-content">${escHtml(n.content)}</div>`:''}
-        ${imgs}
       </div>`;
     }).join('');
   }

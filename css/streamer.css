@@ -238,7 +238,8 @@
 .note-images {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
@@ -317,12 +318,14 @@
   padding: 14px 16px;
 }
 
-.chart-legend {
+.chart-title {
   font-size: 11px;
   color: var(--text3);
   margin-bottom: 10px;
   display: flex;
   align-items: center;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .legend-dot {
@@ -330,7 +333,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-right: 4px;
+  margin-right: 5px;
+  flex-shrink: 0;
 }
 
 .chart-row {
