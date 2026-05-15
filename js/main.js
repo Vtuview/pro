@@ -253,9 +253,18 @@
       if (existing[0]) {
         await SN.apiPatch(`soop_notes?id=eq.${existing[0].id}`, payload);
       } else {
-        await SN.apiPost('soop_notes', {
-          ...payload, streamer_id: streamerId, visitor_fingerprint: fp,
-        }, 'return=minimal');
+        try {
+          await SN.apiPost('soop_notes', {
+            ...payload, streamer_id: streamerId, visitor_fingerprint: fp,
+          }, 'return=minimal');
+        } catch {
+          // 중복 시 PATCH로 재시도
+          const retry = await SN.apiGet(
+            `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=id&limit=1`
+          );
+          if (retry[0]) await SN.apiPatch(`soop_notes?id=eq.${retry[0].id}`, payload);
+          else throw new Error('노트 저장 실패');
+        }
       }
 
       closeModal();
