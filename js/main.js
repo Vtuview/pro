@@ -197,16 +197,29 @@
       const slug = selectedStreamer.slug;
       const watchSec = selectedStreamer.seconds;
 
-      // 스트리머 upsert (slug 중복이면 기존 row 반환)
-      const soopRes = await fetch(`/soop/profile?slug=${slug}`);
-      const soop = soopRes.ok ? await soopRes.json() : {};
-      const upserted = await SN.apiUpsert('soop_streamers', {
-        slug,
-        name: selectedStreamer.name || soop.nick || slug,
-        profile_image: soop.profileImage || null,
-        auto_created: true,
-      }, 'slug');
-      const streamerId = upserted[0].id;
+      // 스트리머: 있으면 기존 id, 없으면 INSERT
+      let streamerId;
+      const streamerRows = await SN.apiGet(`soop_streamers?slug=eq.${slug}&select=id`);
+      if (streamerRows.length) {
+        streamerId = streamerRows[0].id;
+      } else {
+        const soopRes = await fetch(`/soop/profile?slug=${slug}`);
+        const soop = soopRes.ok ? await soopRes.json() : {};
+        try {
+          const created = await SN.apiPost('soop_streamers', {
+            slug,
+            name: selectedStreamer.name || soop.nick || slug,
+            profile_image: soop.profileImage || null,
+            auto_created: true,
+          }, 'return=representation');
+          streamerId = created[0].id;
+        } catch {
+          // INSERT 실패 (동시 요청으로 이미 생성됨) → 재조회
+          const retry = await SN.apiGet(`soop_streamers?slug=eq.${slug}&select=id`);
+          if (!retry.length) throw new Error('스트리머 생성 실패');
+          streamerId = retry[0].id;
+        }
+      }
 
       // 이미지 업로드
       const imageUrls = [];
