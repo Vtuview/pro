@@ -428,9 +428,53 @@ async function initStreamer(slug) {
         <div class="stat-item"><div class="stat-label">구독</div><div class="stat-value">${(soop.subscribers||0).toLocaleString()}</div></div>
       </div>`;
 
+    // 풍선/방송 히스토리 차트
+    if (soop.balloonHistory || soop.broadcastHistory) {
+      const chartSection = document.createElement('div');
+      chartSection.className = 'history-charts';
+      chartSection.innerHTML = buildCharts(soop.balloonHistory || {}, soop.broadcastHistory || {});
+      profileSection.appendChild(chartSection);
+    }
+
     const custom = db?.custom || {};
     if (custom.notice) { noticeEl.textContent = custom.notice; noticeEl.style.display = 'block'; }
     if (custom.bg_color) document.documentElement.style.setProperty('--bg', custom.bg_color);
+  }
+
+  function buildCharts(balloonH, broadcastH) {
+    // 최근 6개월 정렬
+    const months = Object.keys({ ...balloonH, ...broadcastH })
+      .sort().slice(-6);
+
+    const bMax = Math.max(...months.map(m => balloonH[m] || 0), 1);
+    const hMax = Math.max(...months.map(m => broadcastH[m] || 0), 1);
+
+    function bar(val, max, color) {
+      const pct = Math.round((val / max) * 100);
+      return `<div class="bar-wrap">
+        <div class="bar-fill" style="width:${pct}%;background:${color};"></div>
+        <span class="bar-val">${val.toLocaleString()}</span>
+      </div>`;
+    }
+
+    const rows = months.map(m => {
+      const label = m.replace(/^20/, '').replace('-', '/');
+      return `<div class="chart-row">
+        <div class="chart-label">${label}</div>
+        <div class="chart-bars">
+          ${bar(balloonH[m] || 0, bMax, '#f472b6')}
+          ${bar(broadcastH[m] || 0, hMax, '#60a5fa')}
+        </div>
+      </div>`;
+    }).reverse().join('');
+
+    return `<div class="chart-section">
+      <div class="chart-legend">
+        <span class="legend-dot" style="background:#f472b6;"></span>풍선
+        <span class="legend-dot" style="background:#60a5fa;margin-left:12px;"></span>방송시간(h)
+      </div>
+      ${rows}
+    </div>`;
   }
 
   async function loadNotes() {
