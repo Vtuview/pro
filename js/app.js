@@ -403,9 +403,9 @@ async function initStreamer(slug) {
 
     profileSection.innerHTML = `
       <div class="profile-banner"></div>
-      <div class="profile-main">
+      <div class="profile-top">
         <img class="profile-avatar" src="${avatar}" alt="${name}"
-          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect width=%2280%22 height=%2280%22 fill=%22%231e1e26%22/></svg>'">
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%231e1e26%22 rx=%2250%22/></svg>'">
         <div class="profile-info"><div class="profile-name">${name}</div><div class="profile-slug">${slug}</div></div>
       </div>
       <div class="rating-table">
