@@ -154,7 +154,7 @@
           name: soop.nick || slug,
           profile_image: soop.profileImage || null,
           auto_created: true,
-        }, 'return=representation');
+        }, 'return=representation,resolution=merge-duplicates');
         streamerId = newRows[0].id;
       }
 

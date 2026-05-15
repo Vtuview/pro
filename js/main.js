@@ -205,12 +205,13 @@
       } else {
         const soopRes = await fetch(`/soop/profile?slug=${slug}`);
         const soop = soopRes.ok ? await soopRes.json() : {};
+        // upsert: slug 중복 시 기존 row 반환
         const created = await SN.apiPost('soop_streamers', {
           slug,
           name: selectedStreamer.name || soop.nick || slug,
           profile_image: soop.profileImage || null,
           auto_created: true,
-        }, 'return=representation');
+        }, 'return=representation,resolution=merge-duplicates');
         streamerId = created[0].id;
       }
 
