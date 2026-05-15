@@ -1,2 +1,8 @@
 /edit/* /edit.html 200
+/api/* /api/:splat 200
+/auth/* /auth/:splat 200
+/soop/* /soop/:splat 200
+/r2/* /r2/:splat 200
+/css/* /css/:splat 200
+/js/* /js/:splat 200
 /:slug /streamer.html 200
