@@ -422,7 +422,7 @@ async function initStreamer(slug) {
         <div class="meta-item"><div class="meta-label">LAST CAST</div><div class="meta-value">${lastCast}</div></div>
       </div>
       <div class="stat-grid">
-        <div class="stat-item"><div class="stat-label">방송시간</div><div class="stat-value">${soop.broadcastHours||0}h</div></div>
+        <div class="stat-item"><div class="stat-label">누적방송</div><div class="stat-value">${(soop.totalBroadHours||0).toLocaleString()}h</div></div>
         <div class="stat-item"><div class="stat-label">애정자</div><div class="stat-value">${(soop.fanCount||0).toLocaleString()}</div></div>
         <div class="stat-item"><div class="stat-label">팬클럽</div><div class="stat-value">${(soop.fanclubCount||0).toLocaleString()}</div></div>
         <div class="stat-item"><div class="stat-label">구독</div><div class="stat-value">${(soop.subscribers||0).toLocaleString()}</div></div>
