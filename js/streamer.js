@@ -94,27 +94,11 @@
     const m = Math.floor((watchSec % 3600) / 60);
     document.getElementById('write-watch-badge').textContent = `✓ ${h}시간 ${m > 0 ? m+'분' : ''} 시청자`;
 
-    // 기존 노트
-    if (streamerId) {
-      const fp = await SN.getFingerprint();
-      const existing = await SN.apiGet(
-        `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=*&limit=1`
-      ).catch(() => []);
-      if (existing[0]) {
-        document.getElementById('note-content').value = existing[0].content;
-        document.getElementById('submit-btn').textContent = '노트 수정';
-        ['avatar','song','talk','attend'].forEach(key => {
-          const val = existing[0][`rating_${key}`];
-          if (val) {
-            ratings[key] = val;
-            document.querySelector(`.stars[data-key="${key}"]`)
-              .querySelectorAll('.star').forEach(st => {
-                st.classList.toggle('active', Number(st.dataset.val) <= val);
-              });
-          }
-        });
-      }
-    }
+    // 폼 초기화
+    document.getElementById('note-content').value = '';
+    document.getElementById('submit-btn').textContent = '노트 등록';
+    Object.keys(ratings).forEach(k => ratings[k] = 0);
+    document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
 
     // 이미지
     const imagesInput = document.getElementById('note-images');
@@ -179,11 +163,9 @@
         `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=id&limit=1`
       );
 
-      if (existing[0]) {
-        await SN.apiPatch(`soop_notes?id=eq.${existing[0].id}`, payload);
-      } else {
-        await SN.apiPost('soop_notes', { ...payload, streamer_id: streamerId, visitor_fingerprint: fp }, 'return=minimal');
-      }
+      await SN.apiPost('soop_notes', {
+        ...payload, streamer_id: streamerId, visitor_fingerprint: fp
+      }, 'return=minimal');
 
       closeModal();
       await loadNotes();

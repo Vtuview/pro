@@ -7,6 +7,17 @@
   const authBtn = document.getElementById('auth-btn');
   const authStatus = document.getElementById('auth-status');
 
+  // 토스트 알림
+  function showToast(msg, slug) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e1e26;border:1px solid #4ade80;color:#4ade80;padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;display:flex;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);';
+    t.innerHTML = `<span>${msg}</span><a href="/${slug}" style="color:#7c3aed;font-weight:500;text-decoration:none;font-size:12px;">페이지 보기 →</a>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+    // 그리드 새로고침
+    location.reload();
+  }
+
   const ratings = { avatar: 0, song: 0, talk: 0, attend: 0 };
   let selectedStreamer = null;
   let selectedFiles = [];
@@ -246,29 +257,13 @@
         rating_attend: ratings.attend || null,
       };
 
-      const existing = await SN.apiGet(
-        `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=id&limit=1`
-      );
-
-      if (existing[0]) {
-        await SN.apiPatch(`soop_notes?id=eq.${existing[0].id}`, payload);
-      } else {
-        try {
-          await SN.apiPost('soop_notes', {
-            ...payload, streamer_id: streamerId, visitor_fingerprint: fp,
-          }, 'return=minimal');
-        } catch {
-          // 중복 시 PATCH로 재시도
-          const retry = await SN.apiGet(
-            `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=id&limit=1`
-          );
-          if (retry[0]) await SN.apiPatch(`soop_notes?id=eq.${retry[0].id}`, payload);
-          else throw new Error('노트 저장 실패');
-        }
-      }
+      await SN.apiPost('soop_notes', {
+        ...payload, streamer_id: streamerId, visitor_fingerprint: fp,
+      }, 'return=minimal');
 
       closeModal();
-      location.href = `/${slug}`;
+      // 완료 토스트
+      showToast(`${selectedStreamer.name} 노트가 등록됐어요!`, slug);
 
     } catch (e) {
       errEl.textContent = e.message;
