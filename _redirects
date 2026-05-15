@@ -1,2 +1,5 @@
+/index.html /index.html 200
+/streamer.html /streamer.html 200
+/edit.html /edit.html 200
 /edit/* /edit.html 200
 /:slug /streamer.html 200
