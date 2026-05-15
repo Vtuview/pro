@@ -197,23 +197,16 @@
       const slug = selectedStreamer.slug;
       const watchSec = selectedStreamer.seconds;
 
-      // 스트리머 없으면 자동 생성
-      let streamerId;
-      const rows = await SN.apiGet(`soop_streamers?slug=eq.${slug}&select=id`);
-      if (rows.length) {
-        streamerId = rows[0].id;
-      } else {
-        const soopRes = await fetch(`/soop/profile?slug=${slug}`);
-        const soop = soopRes.ok ? await soopRes.json() : {};
-        // upsert: slug 중복 시 기존 row 반환
-        const created = await SN.apiPost('soop_streamers', {
-          slug,
-          name: selectedStreamer.name || soop.nick || slug,
-          profile_image: soop.profileImage || null,
-          auto_created: true,
-        }, 'return=representation,resolution=merge-duplicates');
-        streamerId = created[0].id;
-      }
+      // 스트리머 upsert (slug 중복이면 기존 row 반환)
+      const soopRes = await fetch(`/soop/profile?slug=${slug}`);
+      const soop = soopRes.ok ? await soopRes.json() : {};
+      const upserted = await SN.apiUpsert('soop_streamers', {
+        slug,
+        name: selectedStreamer.name || soop.nick || slug,
+        profile_image: soop.profileImage || null,
+        auto_created: true,
+      }, 'slug');
+      const streamerId = upserted[0].id;
 
       // 이미지 업로드
       const imageUrls = [];

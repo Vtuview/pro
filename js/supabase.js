@@ -56,4 +56,20 @@ async function getFingerprint() {
   return fp;
 }
 
-window.SN = { apiGet, apiPost, apiPatch, getFingerprint };
+async function apiUpsert(path, body, onConflict) {
+  const res = await fetch(`/api/${path}?on_conflict=${onConflict}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation,resolution=merge-duplicates',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `오류: ${res.status}`);
+  }
+  return res.json();
+}
+
+window.SN = { apiGet, apiPost, apiPatch, apiUpsert, getFingerprint };
