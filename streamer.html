@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoopNote</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/streamer.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="/" class="logo">SoopNote</a>
+    <span class="back-btn" onclick="history.back()">← 목록</span>
+  </header>
+
+  <main class="streamer-page">
+    <!-- 프로필 섹션 -->
+    <section id="profile-section" class="profile-section">
+      <div class="loading">불러오는 중...</div>
+    </section>
+
+    <!-- 커스텀 공지 (스트리머 설정 시) -->
+    <div id="custom-notice" class="custom-notice" style="display:none;"></div>
+
+    <!-- 노트 작성 -->
+    <section class="note-form-section">
+      <div id="auth-area">
+        <!-- 인증 전: share URL 입력 -->
+        <div id="auth-prompt" class="auth-prompt">
+          <p>리뷰를 작성하려면 SOOP 리캡 인증이 필요합니다.</p>
+          <p class="auth-sub">리캡 공유 링크를 붙여넣어 주세요 (해당 스트리머 2시간 이상 시청 필요)</p>
+          <div class="auth-input-wrap">
+            <input type="url" id="share-url-input" placeholder="https://dontaskname.github.io/soop-recap-share/share.html#v2.g...">
+            <button id="verify-btn">인증하기</button>
+          </div>
+          <p id="auth-error" class="auth-error" style="display:none;"></p>
+        </div>
+
+        <!-- 인증 후: 스트리머 선택 + 노트 작성 폼 -->
+        <div id="note-form" class="note-form" style="display:none;">
+          <div class="watch-badge" id="watch-badge"></div>
+          <textarea id="note-content" placeholder="이 스트리머에 대한 솔직한 노트를 남겨주세요..." maxlength="500" rows="4"></textarea>
+          <div class="image-upload-area">
+            <label for="note-images" class="upload-label">
+              사진 추가 (최대 2장, 2MB 이하, webp/jpg/png)
+            </label>
+            <input type="file" id="note-images" accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+            <div id="image-preview" class="image-preview"></div>
+          </div>
+          <button id="submit-note-btn">노트 등록</button>
+          <p id="submit-error" class="auth-error" style="display:none;"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 노트 목록 -->
+    <section class="notes-section">
+      <h2 class="section-title">시청자 노트</h2>
+      <div id="notes-list" class="notes-list">
+        <div class="loading">불러오는 중...</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/supabase.js"></script>
+  <script src="/js/recap-auth.js"></script>
+  <script src="/js/streamer.js"></script>
+</body>
+</html>

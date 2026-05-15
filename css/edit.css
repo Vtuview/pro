@@ -1,0 +1,36 @@
+.edit-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 40px 16px;
+}
+
+.login-section h1, .edit-section h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+}
+
+.edit-group {
+  margin-bottom: 20px;
+}
+
+.edit-group label {
+  display: block;
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+#save-status {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--green);
+}

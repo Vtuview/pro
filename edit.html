@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoopNote — 페이지 관리</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/edit.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="/" class="logo">SoopNote</a>
+  </header>
+
+  <main class="edit-page">
+    <!-- 로그인 전 -->
+    <div id="login-section" class="login-section">
+      <h1>페이지 관리</h1>
+      <div class="login-form">
+        <input type="text" id="edit-slug" placeholder="채널 아이디 (slug)">
+        <input type="password" id="edit-password" placeholder="비밀번호">
+        <button id="login-btn">로그인</button>
+        <p id="login-error" class="auth-error" style="display:none;"></p>
+      </div>
+    </div>
+
+    <!-- 로그인 후 -->
+    <div id="edit-section" class="edit-section" style="display:none;">
+      <h1>내 페이지 관리 — <span id="edit-slug-display"></span></h1>
+
+      <div class="edit-group">
+        <label>공지 메시지</label>
+        <textarea id="custom-notice-input" placeholder="팬들에게 전할 메시지 (선택)" rows="3" maxlength="200"></textarea>
+      </div>
+
+      <div class="edit-group">
+        <label>배경색</label>
+        <input type="color" id="custom-bg-color" value="#0f0f13">
+      </div>
+
+      <div class="edit-group">
+        <label>배너 이미지 URL</label>
+        <input type="url" id="custom-banner" placeholder="https://...">
+      </div>
+
+      <button id="save-btn">저장</button>
+      <p id="save-status" style="display:none;"></p>
+    </div>
+  </main>
+
+  <script src="/js/supabase.js"></script>
+  <script src="/js/edit.js"></script>
+</body>
+</html>

@@ -3,10 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SoopNote</title>
-  <meta name="description" content="본 만큼만 말해요 — SOOP 버추얼 스트리머 시청자 리뷰">
+  <title>SoopNote — 본 만큼만 말해요</title>
+  <meta name="description" content="SOOP 버추얼 스트리머 시청자 리뷰 — 진짜 본 사람만 작성하는 노트">
+  <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
-  <h1>SoopNote</h1>
+  <header class="site-header">
+    <a href="/" class="logo">SoopNote</a>
+    <span class="tagline">본 만큼만 말해요</span>
+  </header>
+
+  <main class="main-content">
+    <div id="streamer-grid" class="streamer-grid">
+      <div class="loading">불러오는 중...</div>
+    </div>
+  </main>
+
+  <script src="/js/supabase.js"></script>
+  <script src="/js/main.js"></script>
 </body>
 </html>
