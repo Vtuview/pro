@@ -14,6 +14,7 @@
     <span class="tagline" id="header-tagline">본 만큼만 말해요</span>
     <div class="header-actions">
       <a href="/" class="back-link" id="back-btn" style="display:none;">← 목록</a>
+      <button id="hard-refresh-btn" class="hard-refresh-btn" title="캐시 삭제 후 새로고침 (Ctrl+Shift+R)">↺</button>
       <button id="auth-btn" class="auth-btn">인증하기</button>
       <span id="auth-status" class="auth-status" style="display:none;"></span>
     </div>
@@ -35,6 +36,9 @@
           <button class="modal-close" id="modal-close">✕</button>
         </div>
         <p class="modal-desc">SOOP 리캡 공유 링크를 붙여넣어 주세요.<br>2시간 이상 시청한 스트리머에 노트를 남길 수 있어요.</p>
+        <a href="https://chromewebstore.google.com/detail/soop-%EC%9B%94%EB%B3%84-%EB%A6%AC%EC%BA%A1/pncpjgfglndfmeamgbfjkdabogaikmio?pli=1" target="_blank" class="recap-install-link">
+          📦 SOOP 월별 리캡 확장프로그램 설치 →
+        </a>
         <input type="url" id="share-url-input" placeholder="https://dontaskname.github.io/soop-recap-share/share.html#v2.g...">
         <p id="auth-error" class="modal-error" style="display:none;"></p>
         <button id="verify-btn" class="btn-primary">인증하기</button>

@@ -73,6 +73,39 @@ body {
 }
 .auth-btn:hover { background: var(--accent2); }
 
+.hard-refresh-btn {
+  background: var(--bg3);
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.hard-refresh-btn:hover {
+  background: var(--bg2);
+  color: var(--text);
+  border-color: var(--text3);
+}
+
+.recap-install-link {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--bg3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s;
+}
+.recap-install-link:hover {
+  border-color: var(--accent);
+}
+
 .auth-status {
   font-size: 12px;
   color: var(--green);

@@ -74,6 +74,11 @@ async function initMain() {
   }
   checkAuth();
 
+  // 캐시 삭제 새로고침
+  document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
+    location.reload(true);
+  });
+
   authBtn.addEventListener('click', () => {
     if (RecapAuth.isAuthenticated()) showSelect();
     else openModal('step-auth');
