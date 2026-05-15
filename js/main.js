@@ -1,50 +1,324 @@
-(async function() {
+(async function () {
   const grid = document.getElementById('streamer-grid');
+  const overlay = document.getElementById('modal-overlay');
+  const stepAuth = document.getElementById('step-auth');
+  const stepSelect = document.getElementById('step-select');
+  const stepWrite = document.getElementById('step-write');
+  const authBtn = document.getElementById('auth-btn');
+  const authStatus = document.getElementById('auth-status');
 
-  try {
-    // 스트리머 목록 + 최신 노트 순 정렬
-    const streamers = await SN.apiGet(
-      'soop_streamers?is_active=eq.true&select=id,slug,name,profile_image,custom' +
-      '&order=created_at.desc'
-    );
+  // 별점 상태
+  const ratings = { avatar: 0, song: 0, talk: 0, attend: 0 };
+  let selectedStreamer = null; // { name, slug, seconds }
+  let selectedFiles = [];
 
-    // 각 스트리머 노트 수 가져오기
-    const noteCountRes = await SN.apiGet(
-      'soop_notes?select=streamer_id&order=created_at.desc'
-    );
+  // 별점 초기화
+  document.querySelectorAll('.stars').forEach(el => {
+    const key = el.dataset.key;
+    for (let i = 1; i <= 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'star';
+      s.textContent = '★';
+      s.dataset.val = i;
+      s.addEventListener('click', () => {
+        ratings[key] = i;
+        el.querySelectorAll('.star').forEach(st => {
+          st.classList.toggle('active', Number(st.dataset.val) <= i);
+        });
+      });
+      el.appendChild(s);
+    }
+  });
 
-    // streamer_id별 노트 수 + 최신 노트 시간 집계
-    const noteMap = {};
-    noteCountRes.forEach(n => {
-      if (!noteMap[n.streamer_id]) noteMap[n.streamer_id] = { count: 0 };
-      noteMap[n.streamer_id].count++;
+  // 모달 열기/닫기
+  function openModal(step) {
+    overlay.style.display = 'flex';
+    stepAuth.style.display = 'none';
+    stepSelect.style.display = 'none';
+    stepWrite.style.display = 'none';
+    document.getElementById(step).style.display = 'block';
+  }
+
+  function closeModal() {
+    overlay.style.display = 'none';
+  }
+
+  ['modal-close', 'modal-close2', 'modal-close3'].forEach(id => {
+    document.getElementById(id).addEventListener('click', closeModal);
+  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+  // 인증 상태 확인
+  function checkAuthStatus() {
+    if (RecapAuth.isAuthenticated()) {
+      authBtn.textContent = '노트 작성';
+      authStatus.textContent = '✓ 인증됨';
+      authStatus.style.display = 'inline';
+    }
+  }
+  checkAuthStatus();
+
+  // 인증하기 버튼
+  authBtn.addEventListener('click', () => {
+    if (RecapAuth.isAuthenticated()) {
+      showStreamerSelect();
+    } else {
+      openModal('step-auth');
+    }
+  });
+
+  // Step1: share URL 검증
+  document.getElementById('verify-btn').addEventListener('click', async () => {
+    const url = document.getElementById('share-url-input').value.trim();
+    const errEl = document.getElementById('auth-error');
+    errEl.style.display = 'none';
+
+    if (!url) { errEl.textContent = 'URL을 입력해주세요'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('verify-btn');
+    btn.disabled = true;
+    btn.textContent = '확인 중...';
+
+    try {
+      await RecapAuth.verifyShareUrl(url);
+      checkAuthStatus();
+      showStreamerSelect();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '인증하기';
+    }
+  });
+
+  // Step2: 스트리머 선택 목록
+  function showStreamerSelect() {
+    const streamers = RecapAuth.getEligibleStreamers();
+    const listEl = document.getElementById('streamer-select-list');
+
+    listEl.innerHTML = streamers.map(s => {
+      const h = Math.floor(s.seconds / 3600);
+      const m = Math.floor((s.seconds % 3600) / 60);
+      const timeStr = h > 0 ? `${h}시간 ${m > 0 ? m + '분' : ''}` : `${m}분`;
+      return `
+        <div class="streamer-select-item" data-slug="${s.slug}" data-name="${s.name}" data-seconds="${s.seconds}">
+          <span class="streamer-select-name">${s.name}</span>
+          <span class="streamer-select-time">${timeStr} 시청</span>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.streamer-select-item').forEach(el => {
+      el.addEventListener('click', () => {
+        selectedStreamer = {
+          slug: el.dataset.slug,
+          name: el.dataset.name,
+          seconds: Number(el.dataset.seconds),
+        };
+        showWriteForm();
+      });
     });
 
-    if (!streamers.length) {
-      grid.innerHTML = '<div class="loading">등록된 스트리머가 없습니다.</div>';
+    openModal('step-select');
+  }
+
+  // Step3: 리뷰 작성 폼
+  async function showWriteForm() {
+    openModal('step-write');
+    document.getElementById('write-title').textContent = `${selectedStreamer.name} — 노트 작성`;
+
+    const h = Math.floor(selectedStreamer.seconds / 3600);
+    const m = Math.floor((selectedStreamer.seconds % 3600) / 60);
+    document.getElementById('write-watch-badge').textContent =
+      `✓ ${h}시간 ${m > 0 ? m + '분' : ''} 시청자`;
+
+    // 기존 내 노트 있으면 채우기
+    const fp = await SN.getFingerprint();
+    try {
+      // slug로 streamer_id 찾기
+      const rows = await SN.apiGet(
+        `soop_streamers?slug=eq.${selectedStreamer.slug}&select=id`
+      );
+      if (rows.length) {
+        const existing = await SN.apiGet(
+          `soop_notes?streamer_id=eq.${rows[0].id}&visitor_fingerprint=eq.${fp}&select=*&limit=1`
+        );
+        if (existing[0]) {
+          document.getElementById('note-content').value = existing[0].content;
+          document.getElementById('submit-btn').textContent = '노트 수정';
+          // 기존 별점 복원
+          ['avatar','song','talk','attend'].forEach(key => {
+            const val = existing[0][`rating_${key}`] || 0;
+            if (val) {
+              ratings[key] = val;
+              const el = document.querySelector(`.stars[data-key="${key}"]`);
+              el.querySelectorAll('.star').forEach(st => {
+                st.classList.toggle('active', Number(st.dataset.val) <= val);
+              });
+            }
+          });
+        }
+      }
+    } catch {}
+
+    // 이미지 미리보기
+    const imagesInput = document.getElementById('note-images');
+    const previewEl = document.getElementById('image-preview');
+    selectedFiles = [];
+
+    document.querySelector('.upload-label').addEventListener('click', () => imagesInput.click());
+    imagesInput.addEventListener('change', () => {
+      selectedFiles = Array.from(imagesInput.files).slice(0, 2);
+      previewEl.innerHTML = selectedFiles.map(f =>
+        `<img src="${URL.createObjectURL(f)}" alt="미리보기">`
+      ).join('');
+    });
+  }
+
+  // 제출
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const content = document.getElementById('note-content').value.trim();
+    const errEl = document.getElementById('write-error');
+    errEl.style.display = 'none';
+
+    if (!content && !ratings.avatar) {
+      errEl.textContent = '내용 또는 별점을 입력해주세요';
+      errEl.style.display = 'block';
       return;
     }
 
-    // 노트 많은 순 정렬
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = '등록 중...';
+
+    try {
+      const fp = await SN.getFingerprint();
+
+      // 스트리머 DB에 없으면 자동 생성
+      let streamerId;
+      const rows = await SN.apiGet(
+        `soop_streamers?slug=eq.${selectedStreamer.slug}&select=id`
+      );
+
+      if (rows.length) {
+        streamerId = rows[0].id;
+      } else {
+        // SOOP API에서 기본 정보 가져와서 생성
+        const soopRes = await fetch(`/soop/profile?slug=${selectedStreamer.slug}`);
+        const soop = soopRes.ok ? await soopRes.json() : {};
+
+        const newRows = await SN.apiPost('soop_streamers', {
+          slug: selectedStreamer.slug,
+          name: selectedStreamer.name || soop.nick || selectedStreamer.slug,
+          profile_image: soop.profileImage || null,
+          auto_created: true,
+        }, 'return=representation');
+        streamerId = newRows[0].id;
+      }
+
+      // 이미지 업로드
+      const imageUrls = [];
+      for (const file of selectedFiles) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/r2/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '이미지 업로드 실패');
+        imageUrls.push(data.url);
+      }
+
+      const noteData = {
+        streamer_id: streamerId,
+        content: content || '',
+        watch_seconds: selectedStreamer.seconds,
+        image_urls: imageUrls,
+        visitor_fingerprint: fp,
+        rating_avatar: ratings.avatar || null,
+        rating_song: ratings.song || null,
+        rating_talk: ratings.talk || null,
+        rating_attend: ratings.attend || null,
+      };
+
+      // 기존 노트 있으면 수정
+      const existing = await SN.apiGet(
+        `soop_notes?streamer_id=eq.${streamerId}&visitor_fingerprint=eq.${fp}&select=id&limit=1`
+      );
+
+      if (existing[0]) {
+        await SN.apiPatch(
+          `soop_notes?id=eq.${existing[0].id}`,
+          { content: noteData.content, watch_seconds: noteData.watch_seconds,
+            image_urls: noteData.image_urls, rating_avatar: noteData.rating_avatar,
+            rating_song: noteData.rating_song, rating_talk: noteData.rating_talk,
+            rating_attend: noteData.rating_attend }
+        );
+      } else {
+        await SN.apiPost('soop_notes', noteData, 'return=minimal');
+      }
+
+      closeModal();
+      // 해당 페이지로 이동
+      location.href = `/${selectedStreamer.slug}`;
+
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '노트 등록';
+    }
+  });
+
+  // 스트리머 그리드 로드
+  try {
+    const streamers = await SN.apiGet(
+      'soop_streamers?is_active=eq.true&select=id,slug,name,profile_image&order=created_at.desc'
+    );
+
+    const notes = await SN.apiGet(
+      'soop_notes?select=streamer_id,rating_avatar,rating_song,rating_talk,rating_attend,created_at&order=created_at.desc'
+    );
+
+    // 스트리머별 집계
+    const statsMap = {};
+    notes.forEach(n => {
+      if (!statsMap[n.streamer_id]) statsMap[n.streamer_id] = { count: 0, rSum: 0, rCount: 0, latest: n.created_at };
+      statsMap[n.streamer_id].count++;
+      if (n.created_at > statsMap[n.streamer_id].latest) statsMap[n.streamer_id].latest = n.created_at;
+      const avg = [n.rating_avatar, n.rating_song, n.rating_talk, n.rating_attend]
+        .filter(v => v !== null);
+      if (avg.length) {
+        statsMap[n.streamer_id].rSum += avg.reduce((a, b) => a + b, 0) / avg.length;
+        statsMap[n.streamer_id].rCount++;
+      }
+    });
+
+    if (!streamers.length) {
+      grid.innerHTML = '<div class="loading">아직 등록된 스트리머가 없어요.<br>인증하고 첫 노트를 남겨보세요!</div>';
+      return;
+    }
+
+    // 최신 노트 순 정렬
     streamers.sort((a, b) => {
-      const ac = noteMap[a.id]?.count || 0;
-      const bc = noteMap[b.id]?.count || 0;
-      return bc - ac;
+      const al = statsMap[a.id]?.latest || a.created_at;
+      const bl = statsMap[b.id]?.latest || b.created_at;
+      return bl > al ? 1 : -1;
     });
 
     grid.innerHTML = streamers.map(s => {
-      const noteCount = noteMap[s.id]?.count || 0;
+      const stat = statsMap[s.id] || {};
+      const avg = stat.rCount ? (stat.rSum / stat.rCount).toFixed(1) : null;
+      const stars = avg ? '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg)) : '';
       const avatar = s.profile_image ||
         `https://profile.img.sooplive.com/LOGO/${s.slug.substring(0,2)}/${s.slug}/${s.slug}.jpg`;
 
       return `
         <a href="/${s.slug}" class="streamer-card">
-          <img class="streamer-card-avatar" src="${avatar}"
-            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22><rect width=%2264%22 height=%2264%22 fill=%22%231e1e26%22/></svg>'"
-            alt="${s.name}">
+          <img class="streamer-card-avatar" src="${avatar}" alt="${s.name}"
+            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect width=%2260%22 height=%2260%22 fill=%22%231e1e26%22/></svg>'">
           <div class="streamer-card-name">${s.name}</div>
+          ${avg ? `<div class="streamer-card-rating">${stars} <span style="color:var(--text2);font-size:11px;">${avg}</span></div>` : ''}
           <div class="streamer-card-meta">${s.slug}</div>
-          <span class="streamer-card-note-count">노트 ${noteCount}개</span>
+          <span class="streamer-card-note-count">노트 ${stat.count || 0}개</span>
         </a>
       `;
     }).join('');
