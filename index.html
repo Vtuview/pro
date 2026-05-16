@@ -23,9 +23,18 @@
   <!-- 메인 페이지 -->
   <div id="page-main">
     <main class="main-content">
+      <div class="grid-controls">
+        <input type="text" id="search-input" placeholder="스트리머 검색..." class="search-input">
+        <div class="sort-btns">
+          <button class="sort-btn active" data-sort="latest">최신순</button>
+          <button class="sort-btn" data-sort="notes">노트순</button>
+          <button class="sort-btn" data-sort="rating">별점순</button>
+        </div>
+      </div>
       <div id="streamer-grid" class="streamer-grid">
         <div class="loading">불러오는 중...</div>
       </div>
+      <div id="grid-pagination" class="pagination" style="display:none;"></div>
     </main>
 
     <!-- 인증 모달 -->

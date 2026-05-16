@@ -280,41 +280,107 @@ async function initMain() {
     }
   });
 
+  const PAGE_SIZE = 20;
+  let allStreamers = [];
+  let allStatsMap = {};
+  let currentSort = 'latest';
+  let currentSearch = '';
+  let currentPage = 1;
+
   async function loadGrid() {
     try {
       const [streamers, notes] = await Promise.all([
         SN.apiGet('soop_streamers?is_active=eq.true&select=id,slug,name,profile_image&order=created_at.desc'),
         SN.apiGet('soop_notes?select=streamer_id,rating_avatar,rating_song,rating_talk,rating_attend,created_at'),
       ]);
-      const statsMap = {};
+      allStatsMap = {};
       notes.forEach(n => {
-        if (!statsMap[n.streamer_id]) statsMap[n.streamer_id] = { count:0, rSum:0, rCount:0, latest:n.created_at };
-        const s = statsMap[n.streamer_id];
+        if (!allStatsMap[n.streamer_id]) allStatsMap[n.streamer_id] = { count:0, rSum:0, rCount:0, latest:n.created_at };
+        const s = allStatsMap[n.streamer_id];
         s.count++;
         if (n.created_at > s.latest) s.latest = n.created_at;
         const vals = [n.rating_avatar,n.rating_song,n.rating_talk,n.rating_attend].filter(v=>v!==null);
         if (vals.length) { s.rSum += vals.reduce((a,b)=>a+b,0)/vals.length; s.rCount++; }
       });
-      if (!streamers.length) { grid.innerHTML = '<div class="loading">아직 노트가 없어요. 인증하고 첫 노트를 남겨보세요!</div>'; return; }
-      streamers.sort((a,b) => (statsMap[b.id]?.latest||b.created_at) > (statsMap[a.id]?.latest||a.created_at) ? 1 : -1);
-      grid.innerHTML = streamers.map(s => {
-        const st = statsMap[s.id] || {};
-        const avg = st.rCount ? (st.rSum/st.rCount).toFixed(1) : null;
-        const avatar = s.profile_image || `https://profile.img.sooplive.com/LOGO/${s.slug.substring(0,2)}/${s.slug}/${s.slug}.jpg`;
-        return `<a href="/${s.slug}" class="streamer-card">
-          <img class="streamer-card-avatar" src="${avatar}" alt="${s.name}"
-            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect width=%2260%22 height=%2260%22 fill=%22%231e1e26%22/></svg>'">
-          <div class="streamer-card-name">${s.name}</div>
-          ${avg ? `<div class="streamer-card-rating">${'★'.repeat(Math.round(avg))}${'☆'.repeat(5-Math.round(avg))} <span style="color:var(--text2);font-size:11px;">${avg}</span></div>` : ''}
-          <div class="streamer-card-meta">${s.slug}</div>
-          <span class="streamer-card-note-count">노트 ${st.count||0}개</span>
-        </a>`;
-      }).join('');
+      allStreamers = streamers;
+      currentPage = 1;
+      renderGrid();
     } catch(e) { grid.innerHTML = `<div class="loading">오류: ${e.message}</div>`; }
   }
 
-  await loadGrid();
-}
+  function renderGrid() {
+    let filtered = allStreamers.filter(s =>
+      !currentSearch ||
+      s.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
+      s.slug.toLowerCase().includes(currentSearch.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      const as = allStatsMap[a.id] || {}, bs = allStatsMap[b.id] || {};
+      if (currentSort === 'notes') return (bs.count||0) - (as.count||0);
+      if (currentSort === 'rating') {
+        const ar = as.rCount ? as.rSum/as.rCount : 0;
+        const br = bs.rCount ? bs.rSum/bs.rCount : 0;
+        return br - ar;
+      }
+      return (bs.latest||b.created_at) > (as.latest||a.created_at) ? 1 : -1;
+    });
+
+    if (!filtered.length) {
+      grid.innerHTML = '<div class="loading">검색 결과가 없어요.</div>';
+      document.getElementById('grid-pagination').style.display = 'none';
+      return;
+    }
+
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (currentPage > totalPages) currentPage = 1;
+    const paged = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+
+    grid.innerHTML = paged.map(s => {
+      const st = allStatsMap[s.id] || {};
+      const avg = st.rCount ? (st.rSum/st.rCount).toFixed(1) : null;
+      const avatar = s.profile_image || `https://profile.img.sooplive.com/LOGO/${s.slug.substring(0,2)}/${s.slug}/${s.slug}.jpg`;
+      return `<a href="/${s.slug}" class="streamer-card">
+        <img class="streamer-card-avatar" src="${avatar}" alt="${s.name}"
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect width=%2260%22 height=%2260%22 fill=%22%23f0f0f5%22/></svg>'">
+        <div class="streamer-card-name">${s.name}</div>
+        ${avg ? `<div class="streamer-card-rating">${'★'.repeat(Math.round(avg))}${'☆'.repeat(5-Math.round(avg))} <span style="color:var(--text2);font-size:11px;">${avg}</span></div>` : ''}
+        <div class="streamer-card-meta">${s.slug}</div>
+        <span class="streamer-card-note-count">노트 ${st.count||0}개</span>
+      </a>`;
+    }).join('');
+
+    const pgEl = document.getElementById('grid-pagination');
+    if (totalPages <= 1) { pgEl.style.display = 'none'; return; }
+    pgEl.style.display = 'flex';
+    pgEl.innerHTML = [
+      `<button class="page-btn" ${currentPage===1?'disabled':''} onclick="gotoPage(${currentPage-1})">‹</button>`,
+      ...Array.from({length:totalPages},(_,i) =>
+        `<button class="page-btn ${currentPage===i+1?'active':''}" onclick="gotoPage(${i+1})">${i+1}</button>`
+      ),
+      `<button class="page-btn" ${currentPage===totalPages?'disabled':''} onclick="gotoPage(${currentPage+1})">›</button>`,
+    ].join('');
+  }
+
+  window.gotoPage = (p) => { currentPage = p; renderGrid(); window.scrollTo(0,0); };
+
+  document.getElementById('search-input').addEventListener('input', e => {
+    currentSearch = e.target.value;
+    currentPage = 1;
+    renderGrid();
+  });
+
+  document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSort = btn.dataset.sort;
+      currentPage = 1;
+      renderGrid();
+    });
+  });
+
+  await loadGrid();}
 
 /* ─────────────── 스트리머 페이지 ─────────────── */
 async function initStreamer(slug) {
@@ -961,11 +1027,28 @@ async function loadAdminStreamers() {
   `).join('');
 }
 
-async function loadAdminNotes() {
+let adminNotePage = 1;
+const ADMIN_NOTE_SIZE = 20;
+
+async function loadAdminNotes(page = 1) {
+  adminNotePage = page;
   const list = document.getElementById('admin-notes-list');
+  list.innerHTML = '<div class="loading" style="padding:20px;">불러오는 중...</div>';
+
+  const offset = (page - 1) * ADMIN_NOTE_SIZE;
   const notes = await SN.apiGet(
-    'soop_notes?select=id,content,watch_seconds,created_at,streamer_id,soop_streamers(name,slug)&order=created_at.desc&limit=50'
+    `soop_notes?select=id,content,watch_seconds,created_at,streamer_id,soop_streamers(name,slug)&order=created_at.desc&limit=${ADMIN_NOTE_SIZE}&offset=${offset}`
   ).catch(() => []);
+
+  // 전체 개수
+  const countRes = await fetch('/api/soop_notes?select=id', {
+    headers: { 'Prefer': 'count=exact', 'Range': '0-0' }
+  });
+  const total = parseInt(countRes.headers.get('Content-Range')?.split('/')[1] || '0');
+  const totalPages = Math.ceil(total / ADMIN_NOTE_SIZE);
+
+  if (!notes.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">노트 없음</div>'; return; }
+
   list.innerHTML = notes.map(n => {
     const h = Math.floor(n.watch_seconds/3600);
     const name = n.soop_streamers?.name || '-';
@@ -974,11 +1057,20 @@ async function loadAdminNotes() {
       <div class="admin-row-info">
         <a href="/${slug}" target="_blank" class="admin-slug">${name}</a>
         <span class="admin-name" style="color:var(--text3);">${h}시간 · ${new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
-        <span class="admin-note-preview">${(n.content||'').substring(0,40)}${n.content?.length>40?'...':''}</span>
+        <span class="admin-note-preview">${(n.content||'').substring(0,50)}${(n.content||'').length>50?'...':''}</span>
       </div>
       <button class="btn-sm btn-danger" onclick="deleteNote('${n.id}')">삭제</button>
     </div>`;
   }).join('');
+
+  // 페이지네이션
+  if (totalPages > 1) {
+    list.innerHTML += `<div class="pagination" style="margin-top:16px;">
+      ${page > 1 ? `<button class="page-btn" onclick="loadAdminNotes(${page-1})">‹</button>` : ''}
+      <span style="font-size:13px;color:var(--text3);padding:0 8px;">${page} / ${totalPages}</span>
+      ${page < totalPages ? `<button class="page-btn" onclick="loadAdminNotes(${page+1})">›</button>` : ''}
+    </div>`;
+  }
 }
 
 async function loadAdminAccounts() {
@@ -999,6 +1091,7 @@ async function loadAdminAccounts() {
 }
 
 // 전역 함수 (onclick에서 호출)
+window.loadAdminNotes = loadAdminNotes;
 window.toggleStreamer = async (id, isActive) => {
   try {
     await SN.apiPatch(`soop_streamers?id=eq.${id}`, { is_active: !isActive });
