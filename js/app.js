@@ -487,6 +487,14 @@ async function initStreamer(slug) {
     const custom = db?.custom || {};
     if (custom.notice) { noticeEl.textContent = custom.notice; noticeEl.style.display = 'block'; }
     if (custom.bg_color) document.documentElement.style.setProperty('--bg', custom.bg_color);
+
+    // 배너 이미지 적용
+    const bannerEl = profileSection.querySelector('.profile-banner');
+    if (bannerEl && custom.banner) {
+      bannerEl.style.backgroundImage = `url('${custom.banner}')`;
+      bannerEl.style.backgroundSize = 'cover';
+      bannerEl.style.backgroundPosition = 'center';
+    }
   }
 
   function buildCharts(balloonH, broadcastH) {
@@ -649,6 +657,8 @@ async function initEdit(slug) {
     if (custom.bg_color) document.getElementById('custom-bg-color').value = custom.bg_color;
     if (custom.banner) document.getElementById('custom-banner').value = custom.banner;
 
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.replaceWith(saveBtn.cloneNode(true)); // 중복 이벤트 방지
     document.getElementById('save-btn').addEventListener('click', async () => {
       const newCustom = { notice: document.getElementById('custom-notice-input').value.trim(), bg_color: document.getElementById('custom-bg-color').value, banner: document.getElementById('custom-banner').value.trim() };
       const saveStatus = document.getElementById('save-status');
