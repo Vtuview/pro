@@ -76,9 +76,89 @@ async function initMain() {
       authBtn.textContent = '노트 작성';
       authStatus.textContent = '✓ 인증됨';
       authStatus.style.display = 'inline';
+      document.getElementById('auth-revoke-btn').style.display = 'inline-block';
+    } else {
+      document.getElementById('auth-revoke-btn').style.display = 'none';
     }
   }
   checkAuth();
+
+  // 인증 해제
+  document.getElementById('auth-revoke-btn')?.addEventListener('click', () => {
+    if (!confirm('인증을 해제하면 다른 계정으로 재인증할 수 있어요. 해제할까요?')) return;
+    RecapAuth.clearAuth();
+    authBtn.textContent = '인증하기';
+    authStatus.style.display = 'none';
+    document.getElementById('auth-revoke-btn').style.display = 'none';
+  });
+
+  // 문의 모달
+  const inquiryModal = document.getElementById('inquiry-modal');
+  let currentInquiryType = 'report';
+  let currentInquiryRefId = null;
+
+  const inquiryDescs = {
+    report: '신고할 노트의 내용이나 문제를 알려주세요.',
+    streamer_auth: '인증 요청할 채널의 slug와 증빙 방법을 알려주세요.',
+    general: '궁금한 점이나 전달할 내용을 작성해주세요.',
+  };
+
+  function openInquiryModal(type = 'report', refId = null) {
+    currentInquiryType = type;
+    currentInquiryRefId = refId;
+    document.querySelectorAll('.inquiry-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.type === type);
+    });
+    document.getElementById('inquiry-desc').textContent = inquiryDescs[type];
+    document.getElementById('inquiry-content').value = '';
+    document.getElementById('inquiry-contact').value = '';
+    document.getElementById('inquiry-error').style.display = 'none';
+    document.getElementById('inquiry-submit-btn').textContent = '제출';
+    inquiryModal.style.display = 'flex';
+  }
+
+  window.openInquiryModal = openInquiryModal;
+
+  document.getElementById('inquiry-btn')?.addEventListener('click', () => openInquiryModal('general'));
+  document.getElementById('inquiry-modal-close')?.addEventListener('click', () => { inquiryModal.style.display = 'none'; });
+  inquiryModal?.addEventListener('click', e => { if (e.target === inquiryModal) inquiryModal.style.display = 'none'; });
+
+  document.querySelectorAll('.inquiry-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      currentInquiryType = tab.dataset.type;
+      document.querySelectorAll('.inquiry-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('inquiry-desc').textContent = inquiryDescs[currentInquiryType];
+    });
+  });
+
+  document.getElementById('inquiry-submit-btn')?.addEventListener('click', async () => {
+    const content = document.getElementById('inquiry-content').value.trim();
+    const contact = document.getElementById('inquiry-contact').value.trim();
+    const errEl = document.getElementById('inquiry-error');
+    errEl.style.display = 'none';
+    if (!content) { errEl.textContent = '내용을 입력해주세요'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('inquiry-submit-btn');
+    btn.disabled = true; btn.textContent = '제출 중...';
+    try {
+      await SN.apiPost('soop_inquiries', {
+        type: currentInquiryType,
+        content,
+        contact: contact || null,
+        ref_id: currentInquiryRefId || null,
+      }, 'return=minimal');
+      inquiryModal.style.display = 'none';
+      // 완료 토스트
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #e2e2ea;color:#1a1a2e;padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.1);font-weight:500;';
+      t.textContent = '✅ 문의가 접수됐어요. 감사합니다!';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    } catch(e) {
+      errEl.textContent = e.message; errEl.style.display = 'block';
+    } finally { btn.disabled = false; btn.textContent = '제출'; }
+  });
 
   // 캐시 삭제 새로고침
   document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
@@ -737,7 +817,7 @@ async function initStreamer(slug) {
           <span class="note-author">${h}시간 시청자${isOwn?' · <span class="own-badge">내 노트</span>':''}</span>
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="note-date">${date}</span>
-            ${isOwn ? `<button class="note-edit-btn" data-id="${n.id}">수정</button><button class="note-delete-btn" data-id="${n.id}">삭제</button>` : ''}
+            ${isOwn ? `<button class="note-edit-btn" data-id="${n.id}">수정</button><button class="note-delete-btn" data-id="${n.id}">삭제</button>` : `<button class="note-report-btn" data-id="${n.id}">신고</button>`}
           </div>
         </div>
         ${imgs}
@@ -745,6 +825,14 @@ async function initStreamer(slug) {
         ${n.content?`<div class="note-content">${escHtml(n.content)}</div>`:''}
       </div>`;
     }).join('');
+
+    // 신고 이벤트
+    notesList.querySelectorAll('.note-report-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        openInquiryModal('report', id);
+      });
+    });
 
     // 삭제 이벤트
     notesList.querySelectorAll('.note-delete-btn').forEach(btn => {
@@ -964,7 +1052,7 @@ async function initAdmin() {
 }
 
 async function loadAdminData() {
-  await Promise.all([loadAdminStreamers(), loadAdminNotes(), loadAdminAccounts()]);
+  await Promise.all([loadAdminStreamers(), loadAdminNotes(), loadAdminAccounts(), loadAdminInquiries()]);
 
   // 스트리머 추가
   document.getElementById('add-streamer-btn').addEventListener('click', async () => {
@@ -1090,6 +1178,48 @@ async function loadAdminAccounts() {
     </div>`).join('');
 }
 
+async function loadAdminInquiries() {
+  const list = document.getElementById('admin-inquiries-list');
+  if (!list) return;
+
+  const inquiries = await SN.apiGet(
+    'soop_inquiries?select=*&order=created_at.desc&limit=50'
+  ).catch(() => []);
+
+  const unread = inquiries.filter(i => !i.is_read).length;
+  const badge = document.getElementById('inquiry-badge');
+  if (badge) {
+    if (unread > 0) { badge.textContent = unread; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+  }
+
+  if (!inquiries.length) {
+    list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">문의 없음</div>';
+    return;
+  }
+
+  const typeLabel = { report: '🚨 신고', streamer_auth: '✅ 인증요청', general: '💬 일반' };
+
+  list.innerHTML = inquiries.map(i => `
+    <div class="admin-row ${!i.is_read ? 'inquiry-unread' : ''}" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="admin-badge">${typeLabel[i.type]||i.type}</span>
+          ${!i.is_read ? '<span class="admin-badge" style="background:rgba(124,58,237,0.1);color:var(--accent);border-color:rgba(124,58,237,0.2);">NEW</span>' : ''}
+          <span style="font-size:11px;color:var(--text3);">${new Date(i.created_at).toLocaleString('ko-KR')}</span>
+          ${i.ref_id ? `<span style="font-size:11px;color:var(--text3);">ref: ${i.ref_id.substring(0,8)}...</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;">
+          ${!i.is_read ? `<button class="btn-sm btn-accent" onclick="markInquiryRead('${i.id}')">읽음</button>` : ''}
+          <button class="btn-sm btn-danger" onclick="deleteInquiry('${i.id}')">삭제</button>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;word-break:break-all;">${i.content}</div>
+      ${i.contact ? `<div style="font-size:12px;color:var(--accent);">연락처: ${i.contact}</div>` : ''}
+    </div>
+  `).join('');
+}
+
 // 전역 함수 (onclick에서 호출)
 window.loadAdminNotes = loadAdminNotes;
 window.toggleStreamer = async (id, isActive) => {
@@ -1115,6 +1245,17 @@ window.deleteNote = async (id) => {
     await fetch(`/api/soop_notes?id=eq.${id}`, { method: 'DELETE' });
     await loadAdminNotes();
   } catch(e) { alert(e.message); }
+};
+
+window.markInquiryRead = async (id) => {
+  await SN.apiPatch(`soop_inquiries?id=eq.${id}`, { is_read: true });
+  await loadAdminInquiries();
+};
+
+window.deleteInquiry = async (id) => {
+  if (!confirm('이 문의를 삭제할까요?')) return;
+  await fetch(`/api/soop_inquiries?id=eq.${id}`, { method: 'DELETE' });
+  await loadAdminInquiries();
 };
 
 window.revokeAccount = async (id) => {

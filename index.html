@@ -14,7 +14,9 @@
     <span class="tagline" id="header-tagline">본 만큼만 말해요</span>
     <div class="header-actions">
       <a href="/" class="back-link" id="back-btn" style="display:none;">← 목록</a>
-      <button id="hard-refresh-btn" class="hard-refresh-btn" title="캐시 삭제 후 새로고침 (Ctrl+Shift+R)">↺</button>
+      <button id="hard-refresh-btn" class="hard-refresh-btn" title="캐시 삭제 후 새로고침">↺</button>
+      <button id="inquiry-btn" class="inquiry-btn" title="문의하기">✉</button>
+      <button id="auth-revoke-btn" class="auth-revoke-btn" style="display:none;" title="인증 해제">해제</button>
       <button id="auth-btn" class="auth-btn">인증하기</button>
       <span id="auth-status" class="auth-status" style="display:none;"></span>
     </div>
@@ -80,6 +82,28 @@
         </div>
         <p id="write-error" class="modal-error" style="display:none;"></p>
         <button id="submit-btn" class="btn-primary">노트 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 문의 모달 -->
+  <div id="inquiry-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>문의하기</h2>
+        <button class="modal-close" id="inquiry-modal-close">✕</button>
+      </div>
+      <div class="inquiry-tabs">
+        <button class="inquiry-tab active" data-type="report">악성 리뷰 신고</button>
+        <button class="inquiry-tab" data-type="streamer_auth">스트리머 인증 요청</button>
+        <button class="inquiry-tab" data-type="general">일반 문의</button>
+      </div>
+      <div id="inquiry-form">
+        <p id="inquiry-desc" class="modal-desc" style="margin-top:12px;">신고할 노트 ID나 내용을 알려주세요.</p>
+        <textarea id="inquiry-content" placeholder="내용을 입력해주세요..." rows="4" maxlength="1000"></textarea>
+        <input type="text" id="inquiry-contact" placeholder="연락처 (선택, 디코/트위터 등)" autocomplete="off">
+        <p id="inquiry-error" class="modal-error" style="display:none;"></p>
+        <button id="inquiry-submit-btn" class="btn-primary">제출</button>
       </div>
     </div>
   </div>
@@ -207,6 +231,7 @@
           <button class="admin-tab active" data-tab="streamers">스트리머</button>
           <button class="admin-tab" data-tab="notes">노트</button>
           <button class="admin-tab" data-tab="accounts">에디터 계정</button>
+          <button class="admin-tab" data-tab="inquiries">문의 <span id="inquiry-badge" class="inquiry-count-badge" style="display:none;"></span></button>
         </div>
 
         <!-- 스트리머 관리 -->
@@ -226,6 +251,12 @@
         <div id="admin-tab-notes" class="admin-tab-content" style="display:none;">
           <h2>최근 노트</h2>
           <div id="admin-notes-list"></div>
+        </div>
+
+        <!-- 문의 -->
+        <div id="admin-tab-inquiries" class="admin-tab-content" style="display:none;">
+          <h2>문의 목록</h2>
+          <div id="admin-inquiries-list" style="margin-top:14px;"></div>
         </div>
 
         <!-- 에디터 계정 발급 -->
