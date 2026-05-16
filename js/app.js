@@ -250,6 +250,15 @@ async function initMain() {
 
 /* ─────────────── 스트리머 페이지 ─────────────── */
 async function initStreamer(slug) {
+  // 헤더 버튼
+  document.getElementById('hard-refresh-btn')?.addEventListener('click', () => location.reload(true));
+  document.getElementById('auth-btn')?.addEventListener('click', () => {
+    const auth = RecapAuth.getAuth();
+    const s = auth?.streamers?.find(s => s.slug === slug);
+    if (s?.seconds >= 7200) openWriteS(s.seconds);
+    else openS('step-auth-s');
+  });
+
   const profileSection = document.getElementById('profile-section');
   const noticeEl = document.getElementById('custom-notice');
   const notesList = document.getElementById('notes-list');

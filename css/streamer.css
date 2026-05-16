@@ -38,6 +38,8 @@
   background: var(--bg3);
   flex-shrink: 0;
   box-shadow: var(--shadow-md);
+  position: relative;
+  z-index: 1;
 }
 
 .profile-info { padding-bottom: 4px; }
