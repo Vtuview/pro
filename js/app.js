@@ -657,6 +657,59 @@ async function initEdit(slug) {
     if (custom.bg_color) document.getElementById('custom-bg-color').value = custom.bg_color;
     if (custom.banner) document.getElementById('custom-banner').value = custom.banner;
 
+    // 프로필 사진 업로드
+    const profileFile = document.getElementById('edit-profile-file');
+    const profilePreview = document.getElementById('edit-profile-preview');
+    const profileUploadBtn = document.getElementById('edit-profile-upload-btn');
+    const profileStatus = document.getElementById('edit-profile-status');
+    const uploadLabel = document.querySelector('.upload-label');
+
+    // 현재 프로필 사진 표시
+    const curRows = await SN.apiGet(`soop_streamers?slug=eq.${s}&select=profile_image`);
+    if (curRows[0]?.profile_image) {
+      profilePreview.src = curRows[0].profile_image;
+      profilePreview.style.display = 'block';
+    }
+
+    uploadLabel.addEventListener('click', () => profileFile.click());
+    profileFile.addEventListener('change', () => {
+      const file = profileFile.files[0];
+      if (!file) return;
+      profilePreview.src = URL.createObjectURL(file);
+      profilePreview.style.display = 'block';
+      profileUploadBtn.style.display = 'inline-block';
+    });
+
+    profileUploadBtn.addEventListener('click', async () => {
+      const file = profileFile.files[0];
+      if (!file) return;
+      profileUploadBtn.disabled = true;
+      profileUploadBtn.textContent = '업로드 중...';
+      profileStatus.style.display = 'none';
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch(`/r2/profile?slug=${s}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        // DB 업데이트 (cache bust URL에서 key만 저장)
+        const cleanUrl = data.url.split('?')[0];
+        await SN.apiPatch(`soop_streamers?slug=eq.${s}`, { profile_image: cleanUrl });
+        profilePreview.src = data.url;
+        profileStatus.textContent = '✅ 업로드 완료';
+        profileStatus.style.color = 'var(--green)';
+        profileStatus.style.display = 'block';
+        profileUploadBtn.style.display = 'none';
+      } catch(e) {
+        profileStatus.textContent = '❌ ' + e.message;
+        profileStatus.style.color = 'var(--red)';
+        profileStatus.style.display = 'block';
+      } finally {
+        profileUploadBtn.disabled = false;
+        profileUploadBtn.textContent = '업로드';
+      }
+    });
+
     const saveBtn = document.getElementById('save-btn');
     saveBtn.replaceWith(saveBtn.cloneNode(true)); // 중복 이벤트 방지
     document.getElementById('save-btn').addEventListener('click', async () => {
