@@ -1115,6 +1115,8 @@ async function loadAdminStreamers() {
   `).join('');
 }
 
+var adminNotePage = 1;
+var ADMIN_NOTE_SIZE = 20;
 async function loadAdminNotes(page = 1) {
   adminNotePage = page;
   const list = document.getElementById('admin-notes-list');
@@ -1218,8 +1220,6 @@ async function loadAdminInquiries() {
 }
 
 // 전역 함수 (onclick에서 호출)
-let adminNotePage = 1;
-const ADMIN_NOTE_SIZE = 20;
 window.loadAdminNotes = loadAdminNotes;
 window.toggleStreamer = async (id, isActive) => {
   try {
