@@ -81,7 +81,13 @@ async function initMain() {
 
   // 캐시 삭제 새로고침
   document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
-    location.reload(true);
+    // 캐시 강제 무효화 후 새로고침
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+    }
+    const url = new URL(location.href);
+    url.searchParams.set('_', Date.now());
+    location.replace(url.toString());
   });
 
   authBtn.addEventListener('click', () => {
@@ -251,7 +257,14 @@ async function initMain() {
 /* ─────────────── 스트리머 페이지 ─────────────── */
 async function initStreamer(slug) {
   // 헤더 버튼
-  document.getElementById('hard-refresh-btn')?.addEventListener('click', () => location.reload(true));
+  document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+    }
+    const url = new URL(location.href);
+    url.searchParams.set('_', Date.now());
+    location.replace(url.toString());
+  });
   document.getElementById('auth-btn')?.addEventListener('click', () => {
     const auth = RecapAuth.getAuth();
     const s = auth?.streamers?.find(s => s.slug === slug);
@@ -329,6 +342,32 @@ async function initStreamer(slug) {
     document.getElementById('write-error-s').style.display = 'none';
     selectedFilesS = [];
     editingNoteId = null;
+
+    // 기존 내 노트 자동 불러오기 (수정 모드)
+    if (!existingNote && streamerIdS) {
+      SN.getFingerprint().then(fp => {
+        SN.apiGet(`soop_notes?streamer_id=eq.${streamerIdS}&visitor_fingerprint=eq.${fp}&select=*&limit=1`)
+          .then(rows => {
+            if (!rows[0]) return;
+            editingNoteId = rows[0].id;
+            document.getElementById('note-content-s').value = rows[0].content || '';
+            document.getElementById('submit-btn-s').textContent = '노트 수정';
+            document.getElementById('write-title-s').textContent = '내 노트 수정';
+            // 기존 별점 복원
+            ['avatar','song','talk','attend'].forEach(key => {
+              const val = rows[0][`rating_${key}`];
+              if (!val) return;
+              ratingsS[key] = val;
+              document.querySelector(`.stars[data-page="s"][data-key="${key}"]`)
+                ?.querySelectorAll('.star').forEach(st =>
+                  st.classList.toggle('active', Number(st.dataset.val) <= val));
+            });
+            // 안내 배지
+            const badge = document.getElementById('write-watch-badge-s');
+            badge.innerHTML = badge.innerHTML + ' &nbsp;<span style="font-size:11px;background:rgba(124,58,237,0.1);color:var(--accent);padding:2px 8px;border-radius:999px;border:1px solid rgba(124,58,237,0.2);">이미 작성한 노트가 있어요 — 수정됩니다</span>';
+          }).catch(() => {});
+      });
+    }
 
     openS('step-write-s');
     const h = Math.floor(watchSec/3600), m = Math.floor((watchSec%3600)/60);

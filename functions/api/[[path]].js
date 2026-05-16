@@ -1,8 +1,9 @@
 const SUPABASE_URL = 'https://hqhrnzhzywwtmvkyuxeh.supabase.co';
 
 const CACHE_TTL = {
-  soop_streamers: 60,
-  soop_notes: 30,
+  soop_streamers: 30,
+  soop_notes: 15,
+  soop_streamer_tokens: 10,
 };
 
 function corsHeaders() {
@@ -57,7 +58,10 @@ export async function onRequest(context) {
     status: resp.status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      ...(request.method === 'GET' ? { 'Cache-Control': `public, max-age=${ttl}` } : {}),
+      // GET은 짧은 캐시, 쓰기는 no-cache
+      ...(request.method === 'GET'
+        ? { 'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}` }
+        : { 'Cache-Control': 'no-store' }),
       ...corsHeaders(),
     },
   });
