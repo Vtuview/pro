@@ -693,6 +693,17 @@ async function initStreamer(slug) {
     const editSlug = sessionStorage.getItem('sn_edit_slug');
     const isStreamer = !!(editToken && editSlug === streamerSlug);
     const isAuthed = RecapAuth.isAuthenticated();
+    // 스트리머는 리캡 인증 없이도 댓글 가능
+    const canComment = isAuthed || isStreamer;
+
+    // 스트리머 프로필 이미지
+    let streamerProfile = null;
+    if (isStreamer) {
+      try {
+        const rows = await SN.apiGet(`soop_streamers?slug=eq.${streamerSlug}&select=name,profile_image`);
+        streamerProfile = rows[0] || null;
+      } catch {}
+    }
 
     let allComments = [];
     try {
@@ -717,28 +728,52 @@ async function initStreamer(slug) {
       const replies = comments.filter(c => c.parent_id);
       countEl.textContent = comments.length;
 
+      // 노트별 fingerprint → 익명 번호 매핑
+      const fpOrder = {};
+      let fpCounter = 0;
+      comments.forEach(c => {
+        if (!c.is_streamer && c.visitor_fingerprint && !(c.visitor_fingerprint in fpOrder)) {
+          fpOrder[c.visitor_fingerprint] = ++fpCounter;
+        }
+      });
+
       function renderComment(c, isReply) {
         isReply = isReply || false;
         const isOwn = c.visitor_fingerprint === fp;
         const isStr = c.is_streamer;
-        const authorLabel = isStr
-          ? '<span class="streamer-tag">🎙 스트리머</span>'
-          : (isOwn ? '<span class="my-tag">나</span>' : '');
+
+        let authorHtml = '';
+        let avatarHtml = '';
+        if (isStr) {
+          const img = streamerProfile?.profile_image || '';
+          const name = streamerProfile?.name || streamerSlug;
+          avatarHtml = img
+            ? '<img src="' + img + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);">'
+            : '<div class="comment-avatar">🎙</div>';
+          authorHtml = '<span style="font-weight:700;color:var(--text);">' + escHtml(name) + '</span>'
+            + ' <span class="streamer-tag">스트리머</span>';
+        } else {
+          const anonNum = fpOrder[c.visitor_fingerprint] || '?';
+          avatarHtml = '<div class="comment-avatar">👤</div>';
+          authorHtml = '<span style="color:var(--text2);">익명' + anonNum + '</span>'
+            + (isOwn ? ' <span class="my-tag">나</span>' : '');
+        }
+
         const date = new Date(c.created_at).toLocaleDateString('ko-KR');
         const replyList = !isReply ? replies.filter(r => r.parent_id === c.id) : [];
 
         return '<div class="' + (isReply?'reply-item':'comment-item') + '" id="comment-item-' + c.id + '">' +
           '<div class="comment-bubble">' +
-            '<div class="comment-avatar">' + (isStr?'🎙':'👤') + '</div>' +
+            avatarHtml +
             '<div class="comment-body">' +
-              '<div class="comment-author">익명 ' + authorLabel + '</div>' +
+              '<div class="comment-author">' + authorHtml + '</div>' +
               '<div class="comment-text">' + escHtml(c.content) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="comment-footer">' +
             '<span class="comment-date">' + date + '</span>' +
-            (!isReply && isAuthed ? '<button class="comment-reply-btn" data-comment-id="' + c.id + '" data-note-id="' + noteId + '">답글</button>' : '') +
-            (isOwn ? '<button class="comment-delete-btn" data-comment-id="' + c.id + '">삭제</button>' : '') +
+            (!isReply && canComment ? '<button class="comment-reply-btn" data-comment-id="' + c.id + '" data-note-id="' + noteId + '">답글</button>' : '') +
+            (isOwn || (isStr && c.is_streamer) ? '<button class="comment-delete-btn" data-comment-id="' + c.id + '">삭제</button>' : '') +
           '</div>' +
           replyList.map(function(r){ return renderComment(r, true); }).join('') +
           '<div class="reply-input-wrap" id="reply-input-wrap-' + c.id + '" style="display:none;">' +
@@ -751,26 +786,40 @@ async function initStreamer(slug) {
       listEl.innerHTML = topLevel.map(function(c){ return renderComment(c); }).join('') ||
         '<div style="font-size:12px;color:var(--text3);padding:4px 0;">첫 댓글을 남겨보세요.</div>';
 
-      // 미인증 시 입력창 비활성화
+      // 입력창 설정
       var commentInput = document.getElementById('comment-input-' + noteId);
       var inputWrap = document.querySelector('#comments-' + noteId + ' .comment-input-wrap');
       var commentBtn = inputWrap ? inputWrap.querySelector('.comment-submit-btn') : null;
-      if (!isAuthed) {
+
+      if (!canComment) {
         if (commentInput) { commentInput.placeholder='리캡 인증 후 댓글 가능'; commentInput.disabled=true; commentInput.style.opacity='0.5'; }
         if (commentBtn) { commentBtn.disabled=true; commentBtn.style.opacity='0.5'; }
       }
 
-      // 스트리머 토글
-      if (isStreamer && inputWrap && isAuthed) {
+      // 스트리머 토글 (edit 로그인 상태이고 댓글 가능할 때만)
+      if (isStreamer && inputWrap) {
+        // 기존 토글 중복 방지
+        var existToggle = document.getElementById('streamer-toggle-' + noteId);
+        if (existToggle) existToggle.remove();
+
         var toggle = document.createElement('div');
         toggle.className = 'streamer-comment-toggle';
         toggle.id = 'streamer-toggle-' + noteId;
-        toggle.setAttribute('data-mode', 'viewer');
-        toggle.textContent = '🎙 스트리머로 댓글 달기';
+        toggle.setAttribute('data-mode', 'streamer'); // 스트리머 모드 기본
+        var name = streamerProfile ? streamerProfile.name : streamerSlug;
+        toggle.textContent = '🎙 ' + name + ' 로 댓글 중 (전환하려면 클릭)';
+        toggle.style.background = 'rgba(124,58,237,0.15)';
         toggle.addEventListener('click', function() {
           var mode = toggle.getAttribute('data-mode');
-          if (mode==='viewer') { toggle.setAttribute('data-mode','streamer'); toggle.textContent='👤 일반 댓글로 전환'; toggle.style.background='rgba(124,58,237,0.15)'; }
-          else { toggle.setAttribute('data-mode','viewer'); toggle.textContent='🎙 스트리머로 댓글 달기'; toggle.style.background=''; }
+          if (mode==='streamer') {
+            toggle.setAttribute('data-mode','viewer');
+            toggle.textContent = '👤 익명 댓글 중 (전환하려면 클릭)';
+            toggle.style.background = '';
+          } else {
+            toggle.setAttribute('data-mode','streamer');
+            toggle.textContent = '🎙 ' + name + ' 로 댓글 중 (전환하려면 클릭)';
+            toggle.style.background = 'rgba(124,58,237,0.15)';
+          }
         });
         inputWrap.parentNode.insertBefore(toggle, inputWrap);
       }
@@ -779,7 +828,7 @@ async function initStreamer(slug) {
     // 댓글 등록
     document.querySelectorAll('.comment-submit-btn:not(.reply-submit)').forEach(function(btn) {
       btn.addEventListener('click', async function() {
-        if (!RecapAuth.isAuthenticated()) { alert('리캡 인증 후 댓글을 달 수 있어요.'); return; }
+        if (!canComment) { alert('리캡 인증 후 댓글을 달 수 있어요.'); return; }
         var noteId = btn.dataset.noteId;
         var input = document.getElementById('comment-input-' + noteId);
         var text = input ? input.value.trim() : '';
@@ -809,13 +858,13 @@ async function initStreamer(slug) {
     // 답글 등록
     document.querySelectorAll('.reply-submit').forEach(function(btn) {
       btn.addEventListener('click', async function() {
-        if (!RecapAuth.isAuthenticated()) { alert('리캡 인증 후 답글을 달 수 있어요.'); return; }
+        if (!canComment) { alert('리캡 인증 후 답글을 달 수 있어요.'); return; }
         var parentId = btn.dataset.parentId;
         var noteId = btn.dataset.noteId;
         var input = document.getElementById('reply-input-' + parentId);
         var text = input ? input.value.trim() : '';
         if (!text) return;
-        var asStreamer = !!(editToken && editSlug === streamerSlug);
+        var asStreamer = isStreamer;
         btn.disabled = true;
         try {
           await SN.apiPost('soop_comments', {
@@ -838,7 +887,6 @@ async function initStreamer(slug) {
       });
     });
   }
-
   function calcRating(notes) {
     const keys = ['rating_avatar','rating_song','rating_talk','rating_attend'];
     const r = {};
@@ -1150,6 +1198,17 @@ async function initEdit(slug) {
 
     const saveBtn = document.getElementById('save-btn');
     saveBtn.replaceWith(saveBtn.cloneNode(true)); // 중복 이벤트 방지
+    // 홈 + 로그아웃
+    document.getElementById('edit-goto-home-btn')?.addEventListener('click', () => {
+      location.href = '/' + s;
+    });
+    document.getElementById('edit-logout-btn')?.addEventListener('click', () => {
+      if (!confirm('로그아웃할까요?')) return;
+      sessionStorage.removeItem('sn_edit_token');
+      sessionStorage.removeItem('sn_edit_slug');
+      location.href = '/';
+    });
+
     document.getElementById('save-btn').addEventListener('click', async () => {
       const newCustom = { notice: document.getElementById('custom-notice-input').value.trim(), bg_color: document.getElementById('custom-bg-color').value, banner: document.getElementById('custom-banner').value.trim() };
       const saveStatus = document.getElementById('save-status');
