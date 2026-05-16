@@ -83,11 +83,9 @@ async function initMain() {
   document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
     // 캐시 강제 무효화 후 새로고침
     if ('caches' in window) {
-      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+      caches.keys().then(names => Promise.all(names.map(name => caches.delete(name))));
     }
-    const url = new URL(location.href);
-    url.searchParams.set('_', Date.now());
-    location.replace(url.toString());
+    location.reload();
   });
 
   authBtn.addEventListener('click', () => {
@@ -259,11 +257,9 @@ async function initStreamer(slug) {
   // 헤더 버튼
   document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
     if ('caches' in window) {
-      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+      caches.keys().then(names => Promise.all(names.map(name => caches.delete(name))));
     }
-    const url = new URL(location.href);
-    url.searchParams.set('_', Date.now());
-    location.replace(url.toString());
+    location.reload();
   });
   document.getElementById('auth-btn')?.addEventListener('click', () => {
     const auth = RecapAuth.getAuth();

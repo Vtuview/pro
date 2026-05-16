@@ -138,6 +138,18 @@ export async function onRequest(context) {
     }))
     .filter(s => s.name && s.name !== '기타' && s.seconds >= 7200);
 
+  // 연월 검증 - 이번달 또는 지난달만 허용
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonth = `${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}`;
+
+  if (month !== thisMonth && month !== lastMonth) {
+    return json({
+      error: `${month} 데이터는 사용할 수 없습니다. 이번달 또는 지난달 리캡만 사용 가능해요.`
+    }, 400);
+  }
+
   if (streamers.length === 0) {
     return json({ error: '2시간 이상 시청한 스트리머가 없습니다' }, 400);
   }
