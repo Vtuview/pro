@@ -99,7 +99,8 @@ async function initMain() {
 
   const inquiryDescs = {
     report: '신고할 노트의 내용이나 문제를 알려주세요.',
-    streamer_auth: '인증 요청할 채널의 slug와 증빙 방법을 알려주세요.',
+    streamer_auth: '인증 요청할 채널 slug(예: jjuppi1022)와 본인 확인 방법을 알려주세요.
+연락처에 디스코드 ID 또는 SOOP 아이디를 남겨주시면 빠르게 처리해드려요.',
     general: '궁금한 점이나 전달할 내용을 작성해주세요.',
   };
 
@@ -1115,9 +1116,6 @@ async function loadAdminStreamers() {
   `).join('');
 }
 
-let adminNotePage = 1;
-const ADMIN_NOTE_SIZE = 20;
-
 async function loadAdminNotes(page = 1) {
   adminNotePage = page;
   const list = document.getElementById('admin-notes-list');
@@ -1221,6 +1219,8 @@ async function loadAdminInquiries() {
 }
 
 // 전역 함수 (onclick에서 호출)
+let adminNotePage = 1;
+const ADMIN_NOTE_SIZE = 20;
 window.loadAdminNotes = loadAdminNotes;
 window.toggleStreamer = async (id, isActive) => {
   try {
