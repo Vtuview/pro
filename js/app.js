@@ -2,8 +2,9 @@
 (async function () {
   const path = location.pathname;
   const isEdit = path.startsWith('/edit/');
+  const isAdmin = path === '/sys/ctrl';
   const isMain = path === '/' || path === '/index.html';
-  const slug = (!isMain && !isEdit)
+  const slug = (!isMain && !isEdit && !isAdmin)
     ? path.replace(/^\//, '').split('/')[0]
     : null;
   const editSlug = isEdit
@@ -14,15 +15,19 @@
   document.getElementById('page-main').style.display = isMain ? 'block' : 'none';
   document.getElementById('page-streamer').style.display = slug ? 'block' : 'none';
   document.getElementById('page-edit').style.display = isEdit ? 'block' : 'none';
+  document.getElementById('page-admin').style.display = isAdmin ? 'block' : 'none';
   document.getElementById('back-btn').style.display = (!isMain) ? 'inline' : 'none';
-  document.getElementById('auth-btn').style.display = isEdit ? 'none' : 'inline-block';
+  document.getElementById('auth-btn').style.display = (isEdit || isAdmin) ? 'none' : 'inline-block';
   document.getElementById('header-tagline').style.display = isMain ? 'inline' : 'none';
+  document.getElementById('hard-refresh-btn').style.display = (isEdit || isAdmin) ? 'none' : 'inline-block';
 
   if (slug) document.title = `SoopNote — ${slug}`;
+  if (isAdmin) document.title = 'SoopNote Admin';
 
   if (isMain) await initMain();
   else if (slug) await initStreamer(slug);
   else if (isEdit) await initEdit(editSlug);
+  else if (isAdmin) await initAdmin();
 })();
 
 /* ─────────────── 메인 ─────────────── */
@@ -658,3 +663,200 @@ async function initEdit(slug) {
     });
   }
 }
+
+/* ─────────────── 어드민 ─────────────── */
+async function initAdmin() {
+  const loginEl = document.getElementById('admin-login');
+  const panelEl = document.getElementById('admin-panel');
+  const loginError = document.getElementById('admin-login-error');
+
+  // 세션 체크
+  const token = sessionStorage.getItem('sn_admin_token');
+  const expires = Number(sessionStorage.getItem('sn_admin_expires') || 0);
+  if (token && expires > Date.now()) {
+    loginEl.style.display = 'none';
+    panelEl.style.display = 'block';
+    await loadAdminData();
+  }
+
+  // 로그인
+  document.getElementById('admin-login-btn').addEventListener('click', async () => {
+    const pw = document.getElementById('admin-pw').value;
+    loginError.style.display = 'none';
+    if (!pw) return;
+    const btn = document.getElementById('admin-login-btn');
+    btn.disabled = true; btn.textContent = '확인 중...';
+    try {
+      const res = await fetch('/auth/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      sessionStorage.setItem('sn_admin_token', data.token);
+      sessionStorage.setItem('sn_admin_expires', data.expires);
+      loginEl.style.display = 'none';
+      panelEl.style.display = 'block';
+      await loadAdminData();
+    } catch(e) {
+      loginError.textContent = e.message; loginError.style.display = 'block';
+    } finally { btn.disabled = false; btn.textContent = '접속'; }
+  });
+
+  document.getElementById('admin-pw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('admin-login-btn').click();
+  });
+
+  // 로그아웃
+  document.getElementById('admin-logout-btn').addEventListener('click', () => {
+    sessionStorage.removeItem('sn_admin_token');
+    sessionStorage.removeItem('sn_admin_expires');
+    location.reload();
+  });
+
+  // 탭 전환
+  document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-content').forEach(t => t.style.display = 'none');
+      tab.classList.add('active');
+      document.getElementById(`admin-tab-${tab.dataset.tab}`).style.display = 'block';
+    });
+  });
+}
+
+async function loadAdminData() {
+  await Promise.all([loadAdminStreamers(), loadAdminNotes(), loadAdminAccounts()]);
+
+  // 스트리머 추가
+  document.getElementById('add-streamer-btn').addEventListener('click', async () => {
+    const slug = document.getElementById('new-slug').value.trim();
+    const name = document.getElementById('new-name').value.trim();
+    if (!slug || !name) { alert('slug와 이름을 입력하세요'); return; }
+    try {
+      await SN.apiPost('soop_streamers', { slug, name, auto_created: false }, 'return=minimal');
+      document.getElementById('new-slug').value = '';
+      document.getElementById('new-name').value = '';
+      await loadAdminStreamers();
+    } catch(e) { alert(e.message); }
+  });
+
+  // 에디터 계정 발급
+  document.getElementById('issue-account-btn').addEventListener('click', async () => {
+    const slug = document.getElementById('account-slug').value.trim();
+    const pw = document.getElementById('account-pw').value;
+    const resultEl = document.getElementById('account-result');
+    if (!slug || !pw) { alert('slug와 비밀번호를 입력하세요'); return; }
+    try {
+      const res = await fetch('/auth/editor/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, password: pw, adminToken: sessionStorage.getItem('sn_admin_token') }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      resultEl.textContent = `✅ ${slug} 에디터 계정 발급 완료`;
+      resultEl.style.color = 'var(--green)';
+      resultEl.style.display = 'block';
+      document.getElementById('account-pw').value = '';
+      await loadAdminAccounts();
+    } catch(e) {
+      resultEl.textContent = `❌ ${e.message}`;
+      resultEl.style.color = 'var(--red)';
+      resultEl.style.display = 'block';
+    }
+  });
+}
+
+async function loadAdminStreamers() {
+  const list = document.getElementById('admin-streamers-list');
+  const streamers = await SN.apiGet('soop_streamers?select=id,slug,name,is_active,auto_created&order=created_at.desc');
+  list.innerHTML = streamers.map(s => `
+    <div class="admin-row">
+      <div class="admin-row-info">
+        <a href="/${s.slug}" target="_blank" class="admin-slug">${s.slug}</a>
+        <span class="admin-name">${s.name}</span>
+        ${s.auto_created ? '<span class="admin-badge">자동생성</span>' : ''}
+      </div>
+      <div class="admin-row-actions">
+        <button class="btn-sm ${s.is_active ? 'btn-warn' : 'btn-accent'}" 
+          onclick="toggleStreamer('${s.id}', ${s.is_active})">
+          ${s.is_active ? '비활성화' : '활성화'}
+        </button>
+        <button class="btn-sm btn-danger" onclick="deleteStreamer('${s.id}', '${s.name}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadAdminNotes() {
+  const list = document.getElementById('admin-notes-list');
+  const notes = await SN.apiGet(
+    'soop_notes?select=id,content,watch_seconds,created_at,streamer_id,soop_streamers(name,slug)&order=created_at.desc&limit=50'
+  ).catch(() => []);
+  list.innerHTML = notes.map(n => {
+    const h = Math.floor(n.watch_seconds/3600);
+    const name = n.soop_streamers?.name || '-';
+    const slug = n.soop_streamers?.slug || '';
+    return `<div class="admin-row">
+      <div class="admin-row-info">
+        <a href="/${slug}" target="_blank" class="admin-slug">${name}</a>
+        <span class="admin-name" style="color:var(--text3);">${h}시간 · ${new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
+        <span class="admin-note-preview">${(n.content||'').substring(0,40)}${n.content?.length>40?'...':''}</span>
+      </div>
+      <button class="btn-sm btn-danger" onclick="deleteNote('${n.id}')">삭제</button>
+    </div>`;
+  }).join('');
+}
+
+async function loadAdminAccounts() {
+  const list = document.getElementById('admin-accounts-list');
+  const tokens = await SN.apiGet(
+    'soop_streamer_tokens?select=id,streamer_id,created_at,soop_streamers(name,slug)&order=created_at.desc'
+  ).catch(() => []);
+  if (!tokens.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">발급된 계정 없음</div>'; return; }
+  list.innerHTML = `<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">발급된 에디터 계정 ${tokens.length}개</div>` +
+    tokens.map(t => `<div class="admin-row">
+      <div class="admin-row-info">
+        <span class="admin-slug">${t.soop_streamers?.slug || t.streamer_id}</span>
+        <span class="admin-name">${t.soop_streamers?.name || ''}</span>
+        <span style="font-size:11px;color:var(--text3);">${new Date(t.created_at).toLocaleDateString('ko-KR')} 발급</span>
+      </div>
+      <button class="btn-sm btn-danger" onclick="revokeAccount('${t.id}')">취소</button>
+    </div>`).join('');
+}
+
+// 전역 함수 (onclick에서 호출)
+window.toggleStreamer = async (id, isActive) => {
+  try {
+    await SN.apiPatch(`soop_streamers?id=eq.${id}`, { is_active: !isActive });
+    await loadAdminStreamers();
+  } catch(e) { alert(e.message); }
+};
+
+window.deleteStreamer = async (id, name) => {
+  if (!confirm(`"${name}" 스트리머와 모든 노트를 삭제할까요?`)) return;
+  try {
+    await fetch(`/api/soop_notes?streamer_id=eq.${id}`, { method: 'DELETE' });
+    await fetch(`/api/soop_streamers?id=eq.${id}`, { method: 'DELETE' });
+    await loadAdminStreamers();
+    await loadAdminNotes();
+  } catch(e) { alert(e.message); }
+};
+
+window.deleteNote = async (id) => {
+  if (!confirm('이 노트를 삭제할까요?')) return;
+  try {
+    await fetch(`/api/soop_notes?id=eq.${id}`, { method: 'DELETE' });
+    await loadAdminNotes();
+  } catch(e) { alert(e.message); }
+};
+
+window.revokeAccount = async (id) => {
+  if (!confirm('이 에디터 계정을 취소할까요?')) return;
+  try {
+    await fetch(`/api/soop_streamer_tokens?id=eq.${id}`, { method: 'DELETE' });
+    await loadAdminAccounts();
+  } catch(e) { alert(e.message); }
+};

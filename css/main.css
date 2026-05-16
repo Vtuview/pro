@@ -380,3 +380,128 @@ input:focus { border-color: var(--accent); }
 .image-upload-wrap { margin-bottom: 4px; }
 
 .loading { color: var(--text3); text-align: center; padding: 40px; }
+
+/* ── 어드민 페이지 ── */
+.admin-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.admin-login {
+  max-width: 320px;
+  margin: 80px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-login h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.admin-header h1 { font-size: 20px; font-weight: 700; }
+
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.admin-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text3);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.admin-tab:hover { color: var(--text); }
+.admin-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.admin-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.admin-section-header h2 { font-size: 15px; font-weight: 600; }
+
+.admin-desc { font-size: 13px; color: var(--text3); }
+
+.admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  background: var(--bg2);
+  gap: 8px;
+}
+
+.admin-row-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.admin-slug {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-slug:hover { text-decoration: underline; }
+
+.admin-name { font-size: 13px; color: var(--text2); }
+.admin-note-preview { font-size: 12px; color: var(--text3); }
+
+.admin-badge {
+  font-size: 10px;
+  background: var(--bg3);
+  color: var(--text3);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* 소형 버튼 */
+.btn-sm {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.btn-sm:hover { border-color: var(--text3); color: var(--text); }
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-accent:hover { background: var(--accent2); border-color: var(--accent2); }
+.btn-warn { border-color: #f59e0b; color: #f59e0b; }
+.btn-warn:hover { background: rgba(245,158,11,0.1); }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(248,113,113,0.1); }

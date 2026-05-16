@@ -161,6 +161,66 @@
     </main>
   </div>
 
+  <!-- 어드민 페이지 -->
+  <div id="page-admin" style="display:none;">
+    <main class="admin-page">
+      <!-- 로그인 -->
+      <div id="admin-login" class="admin-login">
+        <h1>관리자</h1>
+        <input type="password" id="admin-pw" placeholder="비밀번호">
+        <button id="admin-login-btn">접속</button>
+        <p id="admin-login-error" class="auth-error" style="display:none;"></p>
+      </div>
+
+      <!-- 어드민 패널 -->
+      <div id="admin-panel" style="display:none;">
+        <div class="admin-header">
+          <h1>SoopNote 관리</h1>
+          <button id="admin-logout-btn" class="btn-sm">로그아웃</button>
+        </div>
+
+        <!-- 탭 -->
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-tab="streamers">스트리머</button>
+          <button class="admin-tab" data-tab="notes">노트</button>
+          <button class="admin-tab" data-tab="accounts">에디터 계정</button>
+        </div>
+
+        <!-- 스트리머 관리 -->
+        <div id="admin-tab-streamers" class="admin-tab-content">
+          <div class="admin-section-header">
+            <h2>스트리머 목록</h2>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="new-slug" placeholder="새 slug" style="width:140px;">
+              <input type="text" id="new-name" placeholder="이름" style="width:120px;">
+              <button id="add-streamer-btn" class="btn-sm btn-accent">추가</button>
+            </div>
+          </div>
+          <div id="admin-streamers-list"></div>
+        </div>
+
+        <!-- 노트 관리 -->
+        <div id="admin-tab-notes" class="admin-tab-content" style="display:none;">
+          <h2>최근 노트</h2>
+          <div id="admin-notes-list"></div>
+        </div>
+
+        <!-- 에디터 계정 발급 -->
+        <div id="admin-tab-accounts" class="admin-tab-content" style="display:none;">
+          <h2>에디터 계정 발급</h2>
+          <p class="admin-desc">스트리머에게 자기 페이지 편집 권한을 부여합니다.</p>
+          <div class="admin-section-header" style="margin-top:12px;">
+            <input type="text" id="account-slug" placeholder="스트리머 slug" style="width:160px;">
+            <input type="password" id="account-pw" placeholder="비밀번호 설정" style="width:160px;">
+            <button id="issue-account-btn" class="btn-sm btn-accent">발급</button>
+          </div>
+          <p id="account-result" style="margin-top:10px;font-size:13px;display:none;"></p>
+          <div id="admin-accounts-list" style="margin-top:16px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
   <script src="/js/supabase.js"></script>
   <script src="/js/recap-auth.js"></script>
   <script src="/js/app.js"></script>

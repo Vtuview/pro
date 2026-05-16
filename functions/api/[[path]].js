@@ -33,8 +33,8 @@ export async function onRequest(context) {
   const table = path.split('?')[0].split('/')[0];
   const isWrite = ['POST', 'PATCH', 'DELETE'].includes(request.method);
 
-  // 쓰기는 service key, 읽기는 anon key
-  const apiKey = isWrite ? SERVICE_KEY : (ANON_KEY || SERVICE_KEY);
+  // 항상 service key 사용 (RLS 우회 + join 쿼리 지원)
+  const apiKey = SERVICE_KEY;
 
   const target = `${SUPABASE_URL}/rest/v1/${path}${url.search}`;
   const prefer = request.headers.get('Prefer') || '';
