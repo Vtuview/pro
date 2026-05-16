@@ -109,21 +109,46 @@ async function initMain() {
     } finally { btn.disabled = false; btn.textContent = '인증하기'; }
   });
 
-  function showSelect() {
+  async function showSelect() {
     const list = document.getElementById('streamer-select-list');
-    list.innerHTML = RecapAuth.getEligibleStreamers().map(s => {
+    const streamers = RecapAuth.getEligibleStreamers();
+    openModal('step-select');
+    list.innerHTML = '<div class="loading" style="padding:20px;">확인 중...</div>';
+
+    // 기존 작성 여부 확인
+    const fp = await SN.getFingerprint();
+    let writtenSlugs = new Set();
+    try {
+      // slug → streamer_id 매핑
+      const slugList = streamers.map(s => s.slug).join(',');
+      const rows = await SN.apiGet(`soop_streamers?slug=in.(${slugList})&select=id,slug`);
+      if (rows.length) {
+        const idList = rows.map(r => r.id).join(',');
+        const notes = await SN.apiGet(
+          `soop_notes?streamer_id=in.(${idList})&visitor_fingerprint=eq.${fp}&select=streamer_id`
+        );
+        const writtenIds = new Set(notes.map(n => n.streamer_id));
+        rows.forEach(r => { if (writtenIds.has(r.id)) writtenSlugs.add(r.slug); });
+      }
+    } catch {}
+
+    list.innerHTML = streamers.map(s => {
       const h = Math.floor(s.seconds/3600), m = Math.floor((s.seconds%3600)/60);
-      return `<div class="streamer-select-item" data-slug="${s.slug}" data-name="${s.name}" data-seconds="${s.seconds}">
+      const written = writtenSlugs.has(s.slug);
+      return `<div class="streamer-select-item ${written ? 'written' : ''}" data-slug="${s.slug}" data-name="${s.name}" data-seconds="${s.seconds}">
         <span class="streamer-select-name">${s.name}</span>
-        <span class="streamer-select-time">${h}시간 ${m > 0 ? m+'분' : ''} 시청</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${written ? '<span class="written-badge">작성함</span>' : ''}
+          <span class="streamer-select-time">${h}시간 ${m > 0 ? m+'분' : ''} 시청</span>
+        </div>
       </div>`;
     }).join('');
+
     list.querySelectorAll('.streamer-select-item').forEach(el =>
       el.addEventListener('click', () => {
         selectedStreamer = { slug: el.dataset.slug, name: el.dataset.name, seconds: Number(el.dataset.seconds) };
         showWrite();
       }));
-    openModal('step-select');
   }
 
   async function showWrite() {
