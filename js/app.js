@@ -696,12 +696,12 @@ async function initStreamer(slug) {
     // 스트리머는 리캡 인증 없이도 댓글 가능
     const canComment = isAuthed || isStreamer;
 
-    // 스트리머 프로필 이미지
-    let streamerProfile = null;
+    // 스트리머 프로필 - 댓글에 등장하는 모든 streamer_slug 수집해서 한번에 조회
+    const streamerProfileMap = {};
     if (isStreamer) {
       try {
-        const rows = await SN.apiGet(`soop_streamers?slug=eq.${streamerSlug}&select=name,profile_image`);
-        streamerProfile = rows[0] || null;
+        const rows = await SN.apiGet(`soop_streamers?slug=eq.${streamerSlug}&select=name,profile_image,slug`);
+        if (rows[0]) streamerProfileMap[streamerSlug] = rows[0];
       } catch {}
     }
 
@@ -711,6 +711,20 @@ async function initStreamer(slug) {
         `soop_comments?note_id=in.(${noteIds.join(',')})&select=*&order=created_at.asc`
       );
     } catch {}
+
+    // 댓글에 등장하는 스트리머 slug 수집 → 프로필 추가 조회
+    const slugsToFetch = [...new Set(
+      allComments.filter(c => c.is_streamer && c.streamer_slug && !streamerProfileMap[c.streamer_slug])
+        .map(c => c.streamer_slug)
+    )];
+    if (slugsToFetch.length) {
+      try {
+        const rows = await SN.apiGet(
+          `soop_streamers?slug=in.(${slugsToFetch.join(',')})&select=name,profile_image,slug`
+        );
+        rows.forEach(r => { streamerProfileMap[r.slug] = r; });
+      } catch {}
+    }
 
     const byNote = {};
     allComments.forEach(c => {
@@ -745,8 +759,9 @@ async function initStreamer(slug) {
         let authorHtml = '';
         let avatarHtml = '';
         if (isStr) {
-          const img = streamerProfile?.profile_image || '';
-          const name = streamerProfile?.name || streamerSlug;
+          const prof = streamerProfileMap[c.streamer_slug] || null;
+          const img = prof ? prof.profile_image : '';
+          const name = prof ? prof.name : (c.streamer_slug || '스트리머');
           avatarHtml = img
             ? '<img src="' + img + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border);">'
             : '<div class="comment-avatar">🎙</div>';
@@ -806,7 +821,7 @@ async function initStreamer(slug) {
         toggle.className = 'streamer-comment-toggle';
         toggle.id = 'streamer-toggle-' + noteId;
         toggle.setAttribute('data-mode', 'streamer'); // 스트리머 모드 기본
-        var name = streamerProfile ? streamerProfile.name : streamerSlug;
+        var name = streamerProfileMap[streamerSlug] ? streamerProfileMap[streamerSlug].name : streamerSlug;
         toggle.textContent = '🎙 ' + name + ' 로 댓글 중 (전환하려면 클릭)';
         toggle.style.background = 'rgba(124,58,237,0.15)';
         toggle.addEventListener('click', function() {
