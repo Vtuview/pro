@@ -30,6 +30,100 @@
   else if (isAdmin) await initAdmin();
 })();
 
+/* ─────────────── 문의 모달 (전역) ─────────────── */
+(function() {
+  const inquiryDescs = {
+    report: '신고할 노트의 내용이나 문제를 알려주세요.',
+    streamer_auth: '인증 요청할 채널 slug(예: jjuppi1022)와 본인 확인 방법을 알려주세요. 연락처에 디스코드 ID 또는 SOOP 아이디를 남겨주시면 빠르게 처리해드려요.',
+    general: '궁금한 점이나 전달할 내용을 작성해주세요.',
+  };
+
+  var currentInquiryType = 'report';
+  var currentInquiryRefId = null;
+
+  window.openInquiryModal = function(type, refId) {
+    type = type || 'report';
+    refId = refId || null;
+    currentInquiryType = type;
+    currentInquiryRefId = refId;
+
+    var modal = document.getElementById('inquiry-modal');
+    if (!modal) return;
+
+    document.querySelectorAll('.inquiry-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.type === type);
+    });
+    var descEl = document.getElementById('inquiry-desc');
+    if (descEl) descEl.textContent = inquiryDescs[type] || '';
+    var contentEl = document.getElementById('inquiry-content');
+    if (contentEl) contentEl.value = '';
+    var contactEl = document.getElementById('inquiry-contact');
+    if (contactEl) contactEl.value = '';
+    var errEl = document.getElementById('inquiry-error');
+    if (errEl) errEl.style.display = 'none';
+    var submitBtn = document.getElementById('inquiry-submit-btn');
+    if (submitBtn) submitBtn.textContent = '제출';
+    modal.style.display = 'flex';
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('inquiry-modal');
+
+    document.getElementById('inquiry-btn')?.addEventListener('click', function() {
+      window.openInquiryModal('general');
+    });
+
+    document.getElementById('inquiry-modal-close')?.addEventListener('click', function() {
+      if (modal) modal.style.display = 'none';
+    });
+
+    modal?.addEventListener('click', function(e) {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+
+    document.querySelectorAll('.inquiry-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        currentInquiryType = tab.dataset.type;
+        document.querySelectorAll('.inquiry-tab').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var descEl = document.getElementById('inquiry-desc');
+        if (descEl) descEl.textContent = inquiryDescs[currentInquiryType] || '';
+      });
+    });
+
+    document.getElementById('inquiry-submit-btn')?.addEventListener('click', async function() {
+      var contentVal = (document.getElementById('inquiry-content')?.value || '').trim();
+      var contact = (document.getElementById('inquiry-contact')?.value || '').trim();
+      var errEl = document.getElementById('inquiry-error');
+      if (errEl) errEl.style.display = 'none';
+      if (!contentVal) {
+        if (errEl) { errEl.textContent = '내용을 입력해주세요'; errEl.style.display = 'block'; }
+        return;
+      }
+      var btn = document.getElementById('inquiry-submit-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
+      try {
+        await SN.apiPost('soop_inquiries', {
+          type: currentInquiryType,
+          content: contentVal,
+          contact: contact || null,
+          ref_id: currentInquiryRefId || null,
+        }, 'return=minimal');
+        if (modal) modal.style.display = 'none';
+        var t = document.createElement('div');
+        t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #e2e2ea;color:#1a1a2e;padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.1);font-weight:500;';
+        t.textContent = '✅ 문의가 접수됐어요. 감사합니다!';
+        document.body.appendChild(t);
+        setTimeout(function(){ t.remove(); }, 3000);
+      } catch(e) {
+        if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '제출'; }
+      }
+    });
+  });
+})();
+
 /* ─────────────── 메인 ─────────────── */
 async function initMain() {
   const grid = document.getElementById('streamer-grid');
@@ -117,48 +211,7 @@ async function initMain() {
     inquiryModal.style.display = 'flex';
   }
 
-  window.openInquiryModal = openInquiryModal;
-
-  document.getElementById('inquiry-btn')?.addEventListener('click', () => openInquiryModal('general'));
-  document.getElementById('inquiry-modal-close')?.addEventListener('click', () => { inquiryModal.style.display = 'none'; });
-  inquiryModal?.addEventListener('click', e => { if (e.target === inquiryModal) inquiryModal.style.display = 'none'; });
-
-  document.querySelectorAll('.inquiry-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      currentInquiryType = tab.dataset.type;
-      document.querySelectorAll('.inquiry-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('inquiry-desc').textContent = inquiryDescs[currentInquiryType];
-    });
-  });
-
-  document.getElementById('inquiry-submit-btn')?.addEventListener('click', async () => {
-    const content = document.getElementById('inquiry-content').value.trim();
-    const contact = document.getElementById('inquiry-contact').value.trim();
-    const errEl = document.getElementById('inquiry-error');
-    errEl.style.display = 'none';
-    if (!content) { errEl.textContent = '내용을 입력해주세요'; errEl.style.display = 'block'; return; }
-
-    const btn = document.getElementById('inquiry-submit-btn');
-    btn.disabled = true; btn.textContent = '제출 중...';
-    try {
-      await SN.apiPost('soop_inquiries', {
-        type: currentInquiryType,
-        content,
-        contact: contact || null,
-        ref_id: currentInquiryRefId || null,
-      }, 'return=minimal');
-      inquiryModal.style.display = 'none';
-      // 완료 토스트
-      const t = document.createElement('div');
-      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #e2e2ea;color:#1a1a2e;padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.1);font-weight:500;';
-      t.textContent = '✅ 문의가 접수됐어요. 감사합니다!';
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 3000);
-    } catch(e) {
-      errEl.textContent = e.message; errEl.style.display = 'block';
-    } finally { btn.disabled = false; btn.textContent = '제출'; }
-  });
+  // inquiry 모달은 전역에서 처리
 
   // 캐시 삭제 새로고침
   document.getElementById('hard-refresh-btn')?.addEventListener('click', () => {
