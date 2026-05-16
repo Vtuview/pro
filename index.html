@@ -237,6 +237,7 @@
           <button class="admin-tab active" data-tab="streamers">스트리머</button>
           <button class="admin-tab" data-tab="notes">노트</button>
           <button class="admin-tab" data-tab="accounts">에디터 계정</button>
+          <button class="admin-tab" data-tab="comments">댓글</button>
           <button class="admin-tab" data-tab="inquiries">문의 <span id="inquiry-badge" class="inquiry-count-badge" style="display:none;"></span></button>
         </div>
 
@@ -257,6 +258,12 @@
         <div id="admin-tab-notes" class="admin-tab-content" style="display:none;">
           <h2>최근 노트</h2>
           <div id="admin-notes-list"></div>
+        </div>
+
+        <!-- 댓글 관리 -->
+        <div id="admin-tab-comments" class="admin-tab-content" style="display:none;">
+          <h2>최근 댓글</h2>
+          <div id="admin-comments-list" style="margin-top:14px;"></div>
         </div>
 
         <!-- 문의 -->

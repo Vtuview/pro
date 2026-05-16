@@ -744,9 +744,11 @@ async function initStreamer(slug) {
     if (!noteIds.length) return;
     const editToken = sessionStorage.getItem('sn_edit_token');
     const editSlug = sessionStorage.getItem('sn_edit_slug');
+    const adminToken = sessionStorage.getItem('sn_admin_token');
+    const adminExpires = Number(sessionStorage.getItem('sn_admin_expires') || 0);
+    const isAdmin = !!(adminToken && adminExpires > Date.now());
     const isStreamer = !!(editToken && editSlug === streamerSlug);
     const isAuthed = RecapAuth.isAuthenticated();
-    // 스트리머는 리캡 인증 없이도 댓글 가능
     const canComment = isAuthed || isStreamer;
 
     // 스트리머 프로필 - 댓글에 등장하는 모든 streamer_slug 수집해서 한번에 조회
@@ -1355,7 +1357,7 @@ async function initAdmin() {
 }
 
 async function loadAdminData() {
-  await Promise.all([loadAdminStreamers(), loadAdminNotes(), loadAdminAccounts(), loadAdminInquiries()]);
+  await Promise.all([loadAdminStreamers(), loadAdminNotes(), loadAdminComments(), loadAdminAccounts(), loadAdminInquiries()]);
 
   // 스트리머 추가
   document.getElementById('add-streamer-btn').addEventListener('click', async () => {
@@ -1480,6 +1482,35 @@ async function loadAdminAccounts() {
     </div>`).join('');
 }
 
+async function loadAdminComments() {
+  const list = document.getElementById('admin-comments-list');
+  if (!list) return;
+
+  const comments = await SN.apiGet(
+    'soop_comments?select=id,content,is_streamer,streamer_slug,visitor_fingerprint,created_at,note_id,parent_id&order=created_at.desc&limit=50'
+  ).catch(() => []);
+
+  if (!comments.length) {
+    list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">댓글 없음</div>';
+    return;
+  }
+
+  list.innerHTML = comments.map(c => {
+    const date = new Date(c.created_at).toLocaleDateString('ko-KR');
+    const author = c.is_streamer ? `🎙 ${c.streamer_slug}` : `익명`;
+    const isReply = !!c.parent_id;
+    return `<div class="admin-row">
+      <div class="admin-row-info">
+        <span class="admin-badge">${isReply ? '대댓글' : '댓글'}</span>
+        <span class="admin-slug">${author}</span>
+        <span class="admin-note-preview">${(c.content||'').substring(0,60)}${c.content?.length>60?'...':''}</span>
+        <span style="font-size:11px;color:var(--text3);">${date}</span>
+      </div>
+      <button class="btn-sm btn-danger" onclick="deleteAdminComment('${c.id}')">삭제</button>
+    </div>`;
+  }).join('');
+}
+
 async function loadAdminInquiries() {
   const list = document.getElementById('admin-inquiries-list');
   if (!list) return;
@@ -1547,6 +1578,12 @@ window.deleteNote = async (id) => {
     await fetch(`/api/soop_notes?id=eq.${id}`, { method: 'DELETE' });
     await loadAdminNotes();
   } catch(e) { alert(e.message); }
+};
+
+window.deleteAdminComment = async (id) => {
+  if (!confirm('이 댓글을 삭제할까요?')) return;
+  await fetch(`/api/soop_comments?id=eq.${id}`, { method: 'DELETE' });
+  await loadAdminComments();
 };
 
 window.markInquiryRead = async (id) => {
