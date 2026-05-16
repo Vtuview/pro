@@ -522,6 +522,16 @@ async function initStreamer(slug) {
     else openS('step-auth-s');
   });
 
+  // 스트리머 인증 여부 배지
+  const editToken = sessionStorage.getItem('sn_edit_token');
+  const editSlug = sessionStorage.getItem('sn_edit_slug');
+  if (editToken && editSlug === slug) {
+    const authBtn2 = document.getElementById('streamer-auth-btn');
+    authBtn2.insertAdjacentHTML('beforebegin',
+      `<span style="font-size:11px;background:rgba(124,58,237,0.1);color:var(--accent);border:1px solid rgba(124,58,237,0.2);border-radius:999px;padding:3px 10px;font-weight:600;">🎙 스트리머 모드</span>`
+    );
+  }
+
   document.getElementById('verify-btn-s').addEventListener('click', async () => {
     const url = document.getElementById('share-url-input-s').value.trim();
     const errEl = document.getElementById('auth-error-s');
@@ -823,8 +833,20 @@ async function initStreamer(slug) {
         ${imgs}
         ${rStr?`<div class="note-rating">${rStr}</div>`:''}
         ${n.content?`<div class="note-content">${escHtml(n.content)}</div>`:''}
+        <div class="comments-section" id="comments-${n.id}">
+          <div class="comments-header">댓글 <span class="comment-count" id="comment-count-${n.id}">로딩중...</span></div>
+          <div class="comments-list" id="comments-list-${n.id}"></div>
+          <div class="comment-input-wrap">
+            <textarea class="comment-input" id="comment-input-${n.id}" placeholder="댓글을 남겨주세요..." rows="1"></textarea>
+            <button class="comment-submit-btn" data-note-id="${n.id}">등록</button>
+          </div>
+        </div>
       </div>`;
     }).join('');
+
+    // 댓글 로드 + 이벤트
+    const noteIds = notes.map(n => n.id);
+    await loadCommentsForNotes(noteIds, fp, slug);
 
     // 신고 이벤트
     notesList.querySelectorAll('.note-report-btn').forEach(btn => {
