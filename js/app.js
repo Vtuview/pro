@@ -43,6 +43,7 @@ async function initMain() {
   const ratings = { avatar: 0, song: 0, talk: 0, attend: 0 };
   let selectedStreamer = null;
   let selectedFiles = [];
+  let editingNoteId = null; // 수정 모드 노트 ID
 
   // 별점
   document.querySelectorAll('.stars:not([data-page])').forEach(el => {
@@ -147,22 +148,53 @@ async function initMain() {
     list.querySelectorAll('.streamer-select-item').forEach(el =>
       el.addEventListener('click', () => {
         selectedStreamer = { slug: el.dataset.slug, name: el.dataset.name, seconds: Number(el.dataset.seconds) };
-        showWrite();
+        const isWritten = writtenSlugs.has(el.dataset.slug);
+        showWrite(isWritten);
       }));
   }
 
-  async function showWrite() {
+  async function showWrite(isEditMode = false) {
     Object.keys(ratings).forEach(k => ratings[k] = 0);
     document.querySelectorAll('.stars:not([data-page]) .star').forEach(s => s.classList.remove('active'));
     document.getElementById('note-content').value = '';
     document.getElementById('image-preview').innerHTML = '';
     document.getElementById('write-error').style.display = 'none';
-    document.getElementById('submit-btn').textContent = '노트 등록';
+    document.getElementById('submit-btn').textContent = isEditMode ? '노트 수정' : '노트 등록';
     selectedFiles = [];
     openModal('step-write');
-    document.getElementById('write-title').textContent = `${selectedStreamer.name} — 노트 작성`;
+
     const h = Math.floor(selectedStreamer.seconds/3600), m = Math.floor((selectedStreamer.seconds%3600)/60);
     document.getElementById('write-watch-badge').textContent = `✓ ${h}시간 ${m > 0 ? m+'분' : ''} 시청자`;
+
+    // 수정 모드 - 기존 노트 불러오기
+    if (isEditMode) {
+      document.getElementById('write-title').textContent = `${selectedStreamer.name} — 노트 수정`;
+      const fp = await SN.getFingerprint();
+      try {
+        const rows = await SN.apiGet(`soop_streamers?slug=eq.${selectedStreamer.slug}&select=id`);
+        if (rows.length) {
+          const existing = await SN.apiGet(
+            `soop_notes?streamer_id=eq.${rows[0].id}&visitor_fingerprint=eq.${fp}&select=*&limit=1`
+          );
+          if (existing[0]) {
+            editingNoteId = existing[0].id;
+            document.getElementById('note-content').value = existing[0].content || '';
+            // 별점 복원
+            ['avatar','song','talk','attend'].forEach(key => {
+              const val = existing[0][`rating_${key}`];
+              if (!val) return;
+              ratings[key] = val;
+              document.querySelector(`.stars:not([data-page])[data-key="${key}"]`)
+                ?.querySelectorAll('.star').forEach(st =>
+                  st.classList.toggle('active', Number(st.dataset.val) <= val));
+            });
+          }
+        }
+      } catch {}
+    } else {
+      document.getElementById('write-title').textContent = `${selectedStreamer.name} — 노트 작성`;
+      editingNoteId = null;
+    }
 
     const inp = document.getElementById('note-images');
     const prev = document.getElementById('image-preview');
@@ -220,12 +252,19 @@ async function initMain() {
         imageUrls.push(data.url);
       }
 
-      await SN.apiPost('soop_notes', {
-        streamer_id: streamerId, content: content || '', watch_seconds: seconds,
-        image_urls: imageUrls, visitor_fingerprint: fp,
+      const payload = {
+        content: content || '', watch_seconds: seconds, image_urls: imageUrls,
         rating_avatar: ratings.avatar || null, rating_song: ratings.song || null,
         rating_talk: ratings.talk || null, rating_attend: ratings.attend || null,
-      }, 'return=minimal');
+      };
+
+      if (editingNoteId) {
+        await SN.apiPatch(`soop_notes?id=eq.${editingNoteId}`, payload);
+      } else {
+        await SN.apiPost('soop_notes', {
+          ...payload, streamer_id: streamerId, visitor_fingerprint: fp,
+        }, 'return=minimal');
+      }
 
       closeModal();
       // 토스트 + 페이지 이동
