@@ -685,6 +685,160 @@ async function initStreamer(slug) {
 
   function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function starStr(v) { if(!v) return '-'; const f=Math.round(v); return '★'.repeat(f)+'☆'.repeat(5-f); }
+
+  // ── 댓글 로드 + 이벤트 ──
+  async function loadCommentsForNotes(noteIds, fp, streamerSlug) {
+    if (!noteIds.length) return;
+    const editToken = sessionStorage.getItem('sn_edit_token');
+    const editSlug = sessionStorage.getItem('sn_edit_slug');
+    const isStreamer = !!(editToken && editSlug === streamerSlug);
+    const isAuthed = RecapAuth.isAuthenticated();
+
+    let allComments = [];
+    try {
+      allComments = await SN.apiGet(
+        `soop_comments?note_id=in.(${noteIds.join(',')})&select=*&order=created_at.asc`
+      );
+    } catch {}
+
+    const byNote = {};
+    allComments.forEach(c => {
+      if (!byNote[c.note_id]) byNote[c.note_id] = [];
+      byNote[c.note_id].push(c);
+    });
+
+    noteIds.forEach(noteId => {
+      const comments = byNote[noteId] || [];
+      const countEl = document.getElementById('comment-count-' + noteId);
+      const listEl = document.getElementById('comments-list-' + noteId);
+      if (!countEl || !listEl) return;
+
+      const topLevel = comments.filter(c => !c.parent_id);
+      const replies = comments.filter(c => c.parent_id);
+      countEl.textContent = comments.length;
+
+      function renderComment(c, isReply) {
+        isReply = isReply || false;
+        const isOwn = c.visitor_fingerprint === fp;
+        const isStr = c.is_streamer;
+        const authorLabel = isStr
+          ? '<span class="streamer-tag">🎙 스트리머</span>'
+          : (isOwn ? '<span class="my-tag">나</span>' : '');
+        const date = new Date(c.created_at).toLocaleDateString('ko-KR');
+        const replyList = !isReply ? replies.filter(r => r.parent_id === c.id) : [];
+
+        return '<div class="' + (isReply?'reply-item':'comment-item') + '" id="comment-item-' + c.id + '">' +
+          '<div class="comment-bubble">' +
+            '<div class="comment-avatar">' + (isStr?'🎙':'👤') + '</div>' +
+            '<div class="comment-body">' +
+              '<div class="comment-author">익명 ' + authorLabel + '</div>' +
+              '<div class="comment-text">' + escHtml(c.content) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="comment-footer">' +
+            '<span class="comment-date">' + date + '</span>' +
+            (!isReply && isAuthed ? '<button class="comment-reply-btn" data-comment-id="' + c.id + '" data-note-id="' + noteId + '">답글</button>' : '') +
+            (isOwn ? '<button class="comment-delete-btn" data-comment-id="' + c.id + '">삭제</button>' : '') +
+          '</div>' +
+          replyList.map(function(r){ return renderComment(r, true); }).join('') +
+          '<div class="reply-input-wrap" id="reply-input-wrap-' + c.id + '" style="display:none;">' +
+            '<textarea class="comment-input" id="reply-input-' + c.id + '" placeholder="답글 달기..." rows="1"></textarea>' +
+            '<button class="comment-submit-btn reply-submit" data-parent-id="' + c.id + '" data-note-id="' + noteId + '">등록</button>' +
+          '</div>' +
+        '</div>';
+      }
+
+      listEl.innerHTML = topLevel.map(function(c){ return renderComment(c); }).join('') ||
+        '<div style="font-size:12px;color:var(--text3);padding:4px 0;">첫 댓글을 남겨보세요.</div>';
+
+      // 미인증 시 입력창 비활성화
+      var commentInput = document.getElementById('comment-input-' + noteId);
+      var inputWrap = document.querySelector('#comments-' + noteId + ' .comment-input-wrap');
+      var commentBtn = inputWrap ? inputWrap.querySelector('.comment-submit-btn') : null;
+      if (!isAuthed) {
+        if (commentInput) { commentInput.placeholder='리캡 인증 후 댓글 가능'; commentInput.disabled=true; commentInput.style.opacity='0.5'; }
+        if (commentBtn) { commentBtn.disabled=true; commentBtn.style.opacity='0.5'; }
+      }
+
+      // 스트리머 토글
+      if (isStreamer && inputWrap && isAuthed) {
+        var toggle = document.createElement('div');
+        toggle.className = 'streamer-comment-toggle';
+        toggle.id = 'streamer-toggle-' + noteId;
+        toggle.setAttribute('data-mode', 'viewer');
+        toggle.textContent = '🎙 스트리머로 댓글 달기';
+        toggle.addEventListener('click', function() {
+          var mode = toggle.getAttribute('data-mode');
+          if (mode==='viewer') { toggle.setAttribute('data-mode','streamer'); toggle.textContent='👤 일반 댓글로 전환'; toggle.style.background='rgba(124,58,237,0.15)'; }
+          else { toggle.setAttribute('data-mode','viewer'); toggle.textContent='🎙 스트리머로 댓글 달기'; toggle.style.background=''; }
+        });
+        inputWrap.parentNode.insertBefore(toggle, inputWrap);
+      }
+    });
+
+    // 댓글 등록
+    document.querySelectorAll('.comment-submit-btn:not(.reply-submit)').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!RecapAuth.isAuthenticated()) { alert('리캡 인증 후 댓글을 달 수 있어요.'); return; }
+        var noteId = btn.dataset.noteId;
+        var input = document.getElementById('comment-input-' + noteId);
+        var text = input ? input.value.trim() : '';
+        if (!text) return;
+        var toggle = document.getElementById('streamer-toggle-' + noteId);
+        var asStreamer = toggle ? toggle.getAttribute('data-mode') === 'streamer' : false;
+        btn.disabled = true;
+        try {
+          await SN.apiPost('soop_comments', {
+            note_id: noteId, content: text, visitor_fingerprint: fp,
+            is_streamer: asStreamer, streamer_slug: asStreamer ? editSlug : null,
+          }, 'return=minimal');
+          if (input) input.value = '';
+          await loadNotes();
+        } catch(e) { alert(e.message); } finally { btn.disabled=false; }
+      });
+    });
+
+    // 답글 버튼 토글
+    document.querySelectorAll('.comment-reply-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var wrap = document.getElementById('reply-input-wrap-' + btn.dataset.commentId);
+        if (wrap) wrap.style.display = wrap.style.display==='none' ? 'flex' : 'none';
+      });
+    });
+
+    // 답글 등록
+    document.querySelectorAll('.reply-submit').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!RecapAuth.isAuthenticated()) { alert('리캡 인증 후 답글을 달 수 있어요.'); return; }
+        var parentId = btn.dataset.parentId;
+        var noteId = btn.dataset.noteId;
+        var input = document.getElementById('reply-input-' + parentId);
+        var text = input ? input.value.trim() : '';
+        if (!text) return;
+        var asStreamer = !!(editToken && editSlug === streamerSlug);
+        btn.disabled = true;
+        try {
+          await SN.apiPost('soop_comments', {
+            note_id: noteId, parent_id: parentId, content: text,
+            visitor_fingerprint: fp, is_streamer: asStreamer,
+            streamer_slug: asStreamer ? editSlug : null,
+          }, 'return=minimal');
+          if (input) input.value = '';
+          await loadNotes();
+        } catch(e) { alert(e.message); } finally { btn.disabled=false; }
+      });
+    });
+
+    // 댓글 삭제 (본인만)
+    document.querySelectorAll('.comment-delete-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!confirm('댓글을 삭제할까요?')) return;
+        await fetch('/api/soop_comments?id=eq.' + btn.dataset.commentId, { method: 'DELETE' });
+        await loadNotes();
+      });
+    });
+  }
+
   function calcRating(notes) {
     const keys = ['rating_avatar','rating_song','rating_talk','rating_attend'];
     const r = {};
