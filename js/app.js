@@ -99,8 +99,7 @@ async function initMain() {
 
   const inquiryDescs = {
     report: '신고할 노트의 내용이나 문제를 알려주세요.',
-    streamer_auth: '인증 요청할 채널 slug(예: jjuppi1022)와 본인 확인 방법을 알려주세요.
-연락처에 디스코드 ID 또는 SOOP 아이디를 남겨주시면 빠르게 처리해드려요.',
+    streamer_auth: '인증 요청할 채널 slug(예: jjuppi1022)와 본인 확인 방법을 알려주세요. 연락처에 디스코드 ID 또는 SOOP 아이디를 남겨주시면 빠르게 처리해드려요.',
     general: '궁금한 점이나 전달할 내용을 작성해주세요.',
   };
 
