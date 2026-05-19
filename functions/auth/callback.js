@@ -49,8 +49,9 @@ export async function onRequest(context) {
       });
       const ud = await userRes.json();
       const d = ud.data || {};
-      userId = d.user_id || d.userId || '';
+      // SOOP API는 user_id 대신 user_nick이 실제 아이디
       userNick = d.user_nick || d.userNick || '';
+      userId = userNick; // user_nick = SOOP 아이디 (broadstatistic szId에 사용)
       profileImage = d.profile_image || '';
       favoriteCount = d.favorite_cnt || 0;
     } catch(e) {
