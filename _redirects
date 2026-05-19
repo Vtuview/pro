@@ -1,2 +1,4 @@
 /edit/* /index.html 200
+/auth/soop /auth/soop 200
+/auth/callback /auth/callback 200
 /* /index.html 200
