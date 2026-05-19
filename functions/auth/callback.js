@@ -49,11 +49,13 @@ export async function onRequest(context) {
       });
       const ud = await userRes.json();
       const d = ud.data || {};
-      // SOOP API는 user_id 대신 user_nick이 실제 아이디
       userNick = d.user_nick || d.userNick || '';
-      userId = userNick; // user_nick = SOOP 아이디 (broadstatistic szId에 사용)
       profileImage = d.profile_image || '';
       favoriteCount = d.favorite_cnt || 0;
+      // profile_image URL에서 실제 userId 추출
+      // 예: https://profile.img.sooplive.com/LOGO/af/af1123/af1123.jpg → af1123
+      const imgMatch = profileImage.match(/LOGO\/[^/]+\/([^/]+)\/[^/]+\.jpg/);
+      userId = imgMatch ? imgMatch[1] : userNick;
     } catch(e) {
       return redirect(`/?soop_error=userinfo`);
     }
@@ -95,9 +97,7 @@ export async function onRequest(context) {
             .filter(s => s.seconds >= 7200);
           bsMethod = 'bearer_success';
         } else {
-          let bsPreview = '';
-        try { bsPreview = JSON.stringify(bsData).substring(0,100); } catch {}
-        bsMethod = `failed_${bsStatus}_${encodeURIComponent(bsPreview)}`;
+          bsMethod = `failed_${bsStatus}`;
         }
       } catch(e) {
         bsMethod = `error`;
