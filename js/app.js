@@ -1,4 +1,40 @@
 // SPA 라우터 - pathname 기반으로 페이지 분기
+// SOOP OAuth 세션 관리
+const SOOP_SESSION_KEY = 'sn_soop_session';
+
+function getSoopSession() {
+  try { return JSON.parse(sessionStorage.getItem(SOOP_SESSION_KEY) || 'null'); } catch { return null; }
+}
+function setSoopSession(data) {
+  sessionStorage.setItem(SOOP_SESSION_KEY, JSON.stringify(data));
+}
+function clearSoopSession() {
+  sessionStorage.removeItem(SOOP_SESSION_KEY);
+}
+
+// OAuth 콜백 파라미터 처리
+(function() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('soop_ok') === '1') {
+    const session = {
+      token: p.get('token'),
+      hash: p.get('hash'),
+      nick: p.get('nick'),
+      avatar: p.get('avatar'),
+      fanCnt: p.get('fan_cnt'),
+      watchSec: Number(p.get('watch_sec') || 0),
+      bsMethod: p.get('bs_method'),
+      streamers: JSON.parse(decodeURIComponent(p.get('watch_streamers') || '[]')),
+    };
+    setSoopSession(session);
+    // URL 클린업
+    history.replaceState({}, '', '/');
+  } else if (p.get('soop_error')) {
+    console.warn('SOOP OAuth 오류:', p.get('soop_error'), p.get('msg'));
+    history.replaceState({}, '', '/');
+  }
+})();
+
 (async function () {
   const path = location.pathname;
   const isEdit = path.startsWith('/edit/');
@@ -166,24 +202,37 @@ async function initMain() {
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
   function checkAuth() {
-    if (RecapAuth.isAuthenticated()) {
+    const soopSession = getSoopSession();
+    const soopLoginBtn = document.getElementById('soop-login-btn');
+
+    if (soopSession) {
+      // SOOP 로그인 상태
+      authBtn.textContent = '노트 작성';
+      authStatus.innerHTML = `<img src="${soopSession.avatar}" style="width:18px;height:18px;border-radius:50%;vertical-align:-3px;margin-right:4px;" onerror="this.style.display='none'">${soopSession.nick}`;
+      authStatus.style.display = 'inline';
+      document.getElementById('auth-revoke-btn').style.display = 'inline-block';
+      document.getElementById('auth-revoke-btn').textContent = '로그아웃';
+      if (soopLoginBtn) soopLoginBtn.style.display = 'none';
+    } else if (RecapAuth.isAuthenticated()) {
+      // 리캡 인증 상태
       authBtn.textContent = '노트 작성';
       authStatus.textContent = '✓ 인증됨';
       authStatus.style.display = 'inline';
       document.getElementById('auth-revoke-btn').style.display = 'inline-block';
+      if (soopLoginBtn) soopLoginBtn.style.display = 'none';
     } else {
       document.getElementById('auth-revoke-btn').style.display = 'none';
+      if (soopLoginBtn) soopLoginBtn.style.display = 'inline-flex';
     }
   }
   checkAuth();
 
   // 인증 해제
   document.getElementById('auth-revoke-btn')?.addEventListener('click', () => {
-    if (!confirm('인증을 해제하면 다른 계정으로 재인증할 수 있어요. 해제할까요?')) return;
+    if (!confirm('로그아웃할까요?')) return;
     RecapAuth.clearAuth();
-    authBtn.textContent = '인증하기';
-    authStatus.style.display = 'none';
-    document.getElementById('auth-revoke-btn').style.display = 'none';
+    clearSoopSession();
+    checkAuth();
   });
 
   // 문의 모달
@@ -223,8 +272,18 @@ async function initMain() {
   });
 
   authBtn.addEventListener('click', () => {
-    if (RecapAuth.isAuthenticated()) showSelect();
-    else openModal('step-auth');
+    const soopSess = getSoopSession();
+    if (soopSess && soopSess.streamers && soopSess.streamers.length > 0) {
+      // SOOP 세션으로 스트리머 선택
+      showSelectWithData(soopSess.streamers);
+    } else if (soopSess) {
+      // SOOP 로그인은 됐지만 시청시간 조회 실패 → 리캡 fallback
+      openModal('step-auth');
+    } else if (RecapAuth.isAuthenticated()) {
+      showSelect();
+    } else {
+      openModal('step-auth');
+    }
   });
 
   document.getElementById('verify-btn').addEventListener('click', async () => {
@@ -242,6 +301,48 @@ async function initMain() {
       errEl.textContent = e.message; errEl.style.display = 'block';
     } finally { btn.disabled = false; btn.textContent = '인증하기'; }
   });
+
+  // SOOP 세션 스트리머 데이터로 선택 목록 표시
+  async function showSelectWithData(streamers) {
+    const list = document.getElementById('streamer-select-list');
+    openModal('step-select');
+    list.innerHTML = '<div class="loading" style="padding:20px;">확인 중...</div>';
+
+    const fp = await SN.getFingerprint();
+    let writtenSlugs = new Set();
+    try {
+      const slugList = streamers.map(s => s.slug || s.name).filter(Boolean).join(',');
+      if (slugList) {
+        const rows = await SN.apiGet(`soop_streamers?slug=in.(${slugList})&select=id,slug`);
+        if (rows.length) {
+          const idList = rows.map(r => r.id).join(',');
+          const notes = await SN.apiGet(`soop_notes?streamer_id=in.(${idList})&visitor_fingerprint=eq.${fp}&select=streamer_id`);
+          const writtenIds = new Set(notes.map(n => n.streamer_id));
+          rows.forEach(r => { if (writtenIds.has(r.id)) writtenSlugs.add(r.slug); });
+        }
+      }
+    } catch {}
+
+    list.innerHTML = streamers.map(s => {
+      const h = Math.floor(s.seconds/3600), m = Math.floor((s.seconds%3600)/60);
+      const slug = s.slug || '';
+      const written = writtenSlugs.has(slug);
+      return `<div class="streamer-select-item ${written?'written':''}" data-slug="${slug}" data-name="${s.name}" data-seconds="${s.seconds}">
+        <span class="streamer-select-name">${s.name}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${written ? '<span class="written-badge">작성함</span>' : ''}
+          <span class="streamer-select-time">${h}시간 ${m>0?m+'분':''} 시청</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.streamer-select-item').forEach(el =>
+      el.addEventListener('click', () => {
+        selectedStreamer = { slug: el.dataset.slug, name: el.dataset.name, seconds: Number(el.dataset.seconds) };
+        const isWritten = writtenSlugs.has(el.dataset.slug);
+        showWrite(isWritten);
+      }));
+  }
 
   async function showSelect() {
     const list = document.getElementById('streamer-select-list');

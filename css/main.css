@@ -754,3 +754,26 @@ input[type="color"] {
   font-weight: 500;
 }
 .note-report-btn:hover { border-color: var(--red); color: var(--red); background: rgba(220,38,38,0.06); }
+
+/* ── SOOP 로그인 버튼 ── */
+.soop-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a6cff;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(26,108,255,0.3);
+  white-space: nowrap;
+}
+.soop-login-btn:hover {
+  background: #1558d4;
+  transform: translateY(-1px);
+}
