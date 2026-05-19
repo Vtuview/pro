@@ -97,7 +97,11 @@ export async function onRequest(context) {
             .filter(s => s.seconds >= 7200);
           bsMethod = 'bearer_success';
         } else {
-          bsMethod = `failed_${bsStatus}`;
+          let preview = '';
+        try { preview = JSON.stringify(bsData).substring(0, 150); } catch {}
+        bsMethod = `failed_${bsStatus}`;
+        // 임시: 응답 내용도 세션에 포함
+        watchStreamers = [{ name: 'DEBUG', seconds: 0, debug: preview }];
         }
       } catch(e) {
         bsMethod = `error`;
