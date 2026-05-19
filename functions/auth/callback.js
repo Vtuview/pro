@@ -95,7 +95,9 @@ export async function onRequest(context) {
             .filter(s => s.seconds >= 7200);
           bsMethod = 'bearer_success';
         } else {
-          bsMethod = `failed_${bsStatus}`;
+          let bsPreview = '';
+        try { bsPreview = JSON.stringify(bsData).substring(0,100); } catch {}
+        bsMethod = `failed_${bsStatus}_${encodeURIComponent(bsPreview)}`;
         }
       } catch(e) {
         bsMethod = `error`;
